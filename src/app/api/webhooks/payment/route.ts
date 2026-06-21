@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       const { data: product } = await supabase.from('products').select('license_enabled, license_type, license_duration, custom_license_days, name').eq('id', item.product_id).single()
       if (product?.license_enabled) {
         const licenseKey = generateLicenseKey()
-        let expiresAt = null
+        let expiresAt: string | null = null
         if (product.license_duration === '1_year') expiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
         else if (product.license_duration === '1_month') expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
         else if (product.license_duration === 'custom' && product.custom_license_days) expiresAt = new Date(Date.now() + product.custom_license_days * 24 * 60 * 60 * 1000).toISOString()

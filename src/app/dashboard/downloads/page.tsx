@@ -63,9 +63,9 @@ export default function DownloadsPage() {
         .eq('user_id', user.id)
         .in('product_id', productIds)
 
-      const downloadMap = new Map(userDownloads?.map(d => [d.product_id, d]) || [])
+      const downloadMap = new Map<string, { id: string; product_id: string; download_count: number; max_downloads: number; last_downloaded_at: string | null }>((userDownloads || []).map((d: { product_id: string, id: string, download_count: number, max_downloads: number, last_downloaded_at: string | null }) => [d.product_id, d]))
 
-      const result: DownloadItem[] = products.map(p => {
+      const result: DownloadItem[] = products.map((p: { id: string; name: string; slug: string; download_type: string | null; download_file: string | null; download_url: string | null }) => {
         const ud = downloadMap.get(p.id)
         return {
           id: ud?.id || p.id,
@@ -75,7 +75,7 @@ export default function DownloadsPage() {
           download_count: ud?.download_count || 0,
           max_downloads: ud?.max_downloads || 10,
           last_downloaded_at: ud?.last_downloaded_at || null,
-          purchase_date: orders[0].created_at,
+          purchase_date: orders[0]?.created_at || '',
           download_type: p.download_type,
           download_file: p.download_file,
           download_url: p.download_url,

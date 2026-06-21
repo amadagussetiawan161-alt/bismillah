@@ -17,7 +17,7 @@ interface License {
   license_key: string
   status: string
   expires_at: string | null
-  products: { name: string } | null
+  products: { name: string }[] | null
   product_id: string
 }
 
@@ -32,12 +32,12 @@ interface Order {
 interface Product {
   id: string
   product_id: string
-  products: { name: string; image_url: string | null } | null
+  products: { name: string; image_url: string | null }[] | null
 }
 
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState<{ id: string; email: string } | null>(null)
+  const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
   const [profile, setProfile] = useState<{ created_at: string; email: string } | null>(null)
   const [stats, setStats] = useState({
     licenses: 0,
@@ -55,7 +55,7 @@ export default function DashboardPage() {
     const fetchData = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      setUser(user)
+      setUser({ id: user.id, email: user.email || undefined })
 
       const { data: profileData } = await supabase.from('profiles').select('created_at, email').eq('user_id', user.id).single()
       setProfile(profileData)
@@ -203,7 +203,7 @@ export default function DashboardPage() {
                     <div key={license.id} className="flex items-start justify-between p-3 rounded-xl bg-slate-50">
                       <div className="flex-1 min-w-0">
                         <p className="font-medium text-sm text-slate-900 truncate">
-                          {license.products?.name || 'Unknown Product'}
+                          {license.products?.[0]?.name || 'Unknown Product'}
                         </p>
                         <p className="text-xs text-slate-500 font-mono mt-1">
                           {license.license_key?.slice(0, 20)}...

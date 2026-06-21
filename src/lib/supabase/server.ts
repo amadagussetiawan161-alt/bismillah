@@ -1,10 +1,11 @@
 import { createServerClient as createSupabaseServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
 
-export async function createServerClient() {
+export async function createServerClient(): Promise<SupabaseClient> {
   if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Missing Supabase environment variables.')
   }
@@ -25,5 +26,5 @@ export async function createServerClient() {
         }
       },
     },
-  })
+  }) as SupabaseClient
 }

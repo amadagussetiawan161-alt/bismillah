@@ -287,9 +287,9 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
     // Handle variants
     // First, get existing variants to determine which to delete
     const { data: existingVariants } = await supabase.from('product_variants').select('id').eq('product_id', id)
-    const existingIds = new Set(existingVariants?.map((v: { id: string }) => v.id) || [])
-    const newIds = new Set(variants.filter((v) => !v.id.startsWith('new-')).map((v) => v.id))
-    const idsToDelete = [...existingIds].filter((id) => !newIds.has(id))
+    const existingIds = new Set<string>(existingVariants?.map((v: { id: string }) => v.id) || [])
+    const newIds = new Set<string>(variants.filter((v) => !v.id.startsWith('new-')).map((v) => v.id))
+    const idsToDelete = [...existingIds].filter((id: string) => !newIds.has(id))
 
     // Delete removed variants
     if (idsToDelete.length > 0) {
