@@ -5,7 +5,7 @@ import { cookies } from 'next/headers'
 export async function GET(request: NextRequest) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/dashboard'
+  const next = searchParams.get('next')
 
   if (code) {
     const cookieStore = await cookies()
@@ -16,13 +16,35 @@ export async function GET(request: NextRequest) {
     if (!error) {
       const { data: { user } } = await supabase.auth.getUser()
       if (user) {
+        // Create profile if not exists
         const { data: profile } = await supabase.from('profiles').select('id').eq('user_id', user.id).single()
         if (!profile) {
-          await supabase.from('profiles').insert({ user_id: user.id, email: user.email!, full_name: user.user_metadata?.full_name || null })
-          await supabase.from('user_roles').insert({ user_id: user.id, role_id: '00000000-0000-0000-0000-000000000002' })
+          await supabase.from('profiles').insert({ user_id: user.id, email: user.email!, full_name: user.user_metadata?.full_name || null, role: 'member' })
+          // Assign member role
+          const { data: memberRole } = await supabase.from('roles').select('id').eq('name', 'member').single()
+          if (memberRole) {
+            await supabase.from('user_roles').insert({ user_id: user.id, role_id: memberRole.id })
+          }
         }
+
+        // Determine redirect based on role
+        const userEmail = user.email?.toLowerCase() || ''
+        const isAdminEmail = userEmail === 'admin@gmail.com'
+
+        if (next) {
+          return NextResponse.redirect(`${origin}${next}`)
+        }
+
+        // Get role from profiles table
+        const { data: userProfile } = await supabase.from('profiles').select('role').eq('user_id', user.id).single()
+        const role = userProfile?.role || 'member'
+
+        if (role === 'admin' || isAdminEmail) {
+          return NextResponse.redirect(`${origin}/admin`)
+        }
+        return NextResponse.redirect(`${origin}/dashboard`)
       }
-      return NextResponse.redirect(`${origin}${next}`)
+      return NextResponse.redirect(`${origin}/dashboard`)
     }
   }
   return NextResponse.redirect(`${origin}/auth/auth-error?error=Unable to verify email`)

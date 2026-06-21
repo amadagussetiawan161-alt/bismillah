@@ -23,27 +23,61 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
 
   const pathname = request.nextUrl.pathname
-  const isDashboard = pathname.startsWith('/dashboard')
-  const isAdmin = pathname.startsWith('/dashboard/admin')
-  const isAuth = pathname.startsWith('/auth/')
+  const isAdminRoute = pathname.startsWith('/admin')
+  const isDashboardRoute = pathname.startsWith('/dashboard')
+  const isAuthRoute = pathname.startsWith('/auth/')
+  const isAdminDashboard = pathname.startsWith('/dashboard/admin')
 
-  if (isDashboard && !session) {
+  // Helper to get user role
+  const getUserRole = async (userId: string) => {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('user_id', userId).single()
+    return profile?.role || 'member'
+  }
+
+  // Protect admin routes - members cannot access
+  if (isAdminRoute && !session) {
     const redirectUrl = new URL('/auth/login', request.url)
     redirectUrl.searchParams.set('redirectTo', pathname)
     return NextResponse.redirect(redirectUrl)
   }
 
-  if (isAdmin && session) {
-    const adminEmails = ['admin@gmail.com']
-    const { data: userRole } = await supabase.from('user_roles').select('role:roles(name)').eq('user_id', user?.id || '').single()
-    const roleName = (userRole?.role as { name?: string } | undefined)?.name || 'customer'
+  if (isAdminRoute && session && user) {
+    const userEmail = user.email?.toLowerCase() || ''
+    const isAdminEmail = userEmail === 'admin@gmail.com'
+    const role = await getUserRole(user.id)
 
-    if (!adminEmails.includes(user?.email?.toLowerCase() || '') && roleName !== 'admin') {
+    if (role !== 'admin' && !isAdminEmail) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
     }
   }
 
-  if (isAuth && session && !pathname.includes('callback') && !pathname.includes('auth-error')) {
+  // Protect dashboard routes - guests cannot access
+  if (isDashboardRoute && !session) {
+    const redirectUrl = new URL('/auth/login', request.url)
+    redirectUrl.searchParams.set('redirectTo', pathname)
+    return NextResponse.redirect(redirectUrl)
+  }
+
+  // Redirect admins away from member dashboard (except admin subdirectory)
+  if (isDashboardRoute && !isAdminDashboard && session && user) {
+    const userEmail = user.email?.toLowerCase() || ''
+    const isAdminEmail = userEmail === 'admin@gmail.com'
+    const role = await getUserRole(user.id)
+
+    if (role === 'admin' || isAdminEmail) {
+      return NextResponse.redirect(new URL('/admin', request.url))
+    }
+  }
+
+  // Redirect logged-in users away from auth pages
+  if (isAuthRoute && session && user && !pathname.includes('callback') && !pathname.includes('auth-error')) {
+    const userEmail = user.email?.toLowerCase() || ''
+    const isAdminEmail = userEmail === 'admin@gmail.com'
+    const role = await getUserRole(user.id)
+
+    if (role === 'admin' || isAdminEmail) {
+      return NextResponse.redirect(new URL('/admin', request.url))
+    }
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 

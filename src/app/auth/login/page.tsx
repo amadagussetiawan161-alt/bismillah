@@ -14,7 +14,7 @@ import { Loader2 } from 'lucide-react'
 function LoginForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const redirectTo = searchParams.get('redirectTo') || '/dashboard'
+  const redirectTo = searchParams.get('redirectTo')
   const [loading, setLoading] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -28,8 +28,28 @@ function LoginForm() {
     const { error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) { toast.error(error.message); setLoading(false); return }
-    toast.success('Logged in successfully!')
-    router.push(redirectTo)
+
+    // Get user role and redirect accordingly
+    const { data: { user } } = await supabase.auth.getUser()
+    if (user) {
+      const userEmail = user.email?.toLowerCase() || ''
+      const isAdminEmail = userEmail === 'admin@gmail.com'
+
+      const { data: profile } = await supabase.from('profiles').select('role').eq('user_id', user.id).single()
+      const role = profile?.role || 'member'
+
+      toast.success('Logged in successfully!')
+
+      if (redirectTo) {
+        router.push(redirectTo)
+      } else if (role === 'admin' || isAdminEmail) {
+        router.push('/admin')
+      } else {
+        router.push('/dashboard')
+      }
+    } else {
+      router.push('/dashboard')
+    }
   }
 
   return (
