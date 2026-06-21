@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import { createBrowserClient } from '@/lib/supabase/client'
-import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
@@ -12,8 +11,9 @@ import {
   ACTION_TYPES,
 } from '@/lib/action-engine'
 import {
-  Plus, Trash2, ChevronDown, ChevronUp, GripVertical, ExternalLink,
-  MessageCircle, Phone, Mail, Send, Facebook, BarChart3, Target, Code
+  Trash2, ChevronDown, ChevronUp, GripVertical, ExternalLink,
+  MessageCircle, Phone, Mail, Send, Facebook, BarChart3, Target, Code,
+  Plus, ArrowRight, Scroll, Package
 } from 'lucide-react'
 
 interface MultiActionEditorProps {
@@ -23,7 +23,9 @@ interface MultiActionEditorProps {
 
 const ACTION_ICONS: Record<string, any> = {
   direct_url: ExternalLink,
-  product_purchase: ExternalLink,
+  internal_page: ArrowRight,
+  scroll_to_section: Scroll,
+  product_purchase: Package,
   whatsapp_chat: MessageCircle,
   whatsapp_inquiry: MessageCircle,
   phone_call: Phone,
@@ -38,12 +40,13 @@ const ACTION_ICONS: Record<string, any> = {
 
 export function MultiActionEditor({ actions, onChange }: MultiActionEditorProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const supabase = createBrowserClient()
+  const [showAddMenu, setShowAddMenu] = useState(false)
 
   const addAction = (type: ActionType) => {
     const newAction = createEmptyAction(type)
     onChange([...actions, newAction])
     setExpandedId(newAction.id)
+    setShowAddMenu(false)
   }
 
   const updateAction = (id: string, updates: Partial<Action>) => {
@@ -52,6 +55,7 @@ export function MultiActionEditor({ actions, onChange }: MultiActionEditorProps)
 
   const removeAction = (id: string) => {
     onChange(actions.filter((a) => a.id !== id))
+    if (expandedId === id) setExpandedId(null)
   }
 
   const moveAction = (id: string, direction: 'up' | 'down') => {
@@ -78,11 +82,11 @@ export function MultiActionEditor({ actions, onChange }: MultiActionEditorProps)
       <Label className="text-sm font-medium">Actions</Label>
 
       {actions.length === 0 ? (
-        <div className="text-sm text-muted-foreground py-4 border rounded-lg text-center">
-          No actions configured. Add actions below.
+        <div className="text-sm text-muted-foreground py-3 border rounded-lg text-center">
+          No actions configured
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-1">
           {actions.map((action, index) => {
             const isExpanded = expandedId === action.id
             const typeInfo = ACTION_TYPES.find((t) => t.value === action.type)
@@ -91,16 +95,16 @@ export function MultiActionEditor({ actions, onChange }: MultiActionEditorProps)
             return (
               <div
                 key={action.id}
-                className="border rounded-lg overflow-hidden"
+                className="border rounded-md overflow-hidden"
               >
                 <div
-                  className="flex items-center gap-2 p-3 bg-muted/30 cursor-pointer"
+                  className="flex items-center gap-2 p-2 bg-muted/30 cursor-pointer hover:bg-muted/50"
                   onClick={() => setExpandedId(isExpanded ? null : action.id)}
                 >
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      className="p-1 hover:bg-muted rounded cursor-grab"
+                      className="p-0.5 hover:bg-muted rounded cursor-grab"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <GripVertical className="h-3 w-3 text-muted-foreground" />
@@ -109,8 +113,8 @@ export function MultiActionEditor({ actions, onChange }: MultiActionEditorProps)
                       {index + 1}
                     </span>
                   </div>
-                  <Icon className="h-4 w-4 text-primary" />
-                  <span className="flex-1 text-sm font-medium">
+                  <Icon className="h-3.5 w-3.5 text-primary" />
+                  <span className="flex-1 text-xs font-medium truncate">
                     {typeInfo?.label || action.type}
                   </span>
                   <div className="flex items-center gap-1">
@@ -122,7 +126,7 @@ export function MultiActionEditor({ actions, onChange }: MultiActionEditorProps)
                         updateAction(action.id, { enabled: e.target.checked })
                       }}
                       onClick={(e) => e.stopPropagation()}
-                      className="h-4 w-4"
+                      className="h-3.5 w-3.5"
                       title="Enable/Disable"
                     />
                     <button
@@ -131,23 +135,24 @@ export function MultiActionEditor({ actions, onChange }: MultiActionEditorProps)
                         e.stopPropagation()
                         removeAction(action.id)
                       }}
-                      className="p-1 hover:bg-muted rounded text-destructive"
+                      className="p-0.5 hover:bg-muted rounded text-destructive"
                     >
                       <Trash2 className="h-3 w-3" />
                     </button>
                     {isExpanded ? (
-                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                      <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
                     ) : (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
                     )}
                   </div>
                 </div>
 
                 {isExpanded && (
-                  <div className="p-4 space-y-3 bg-background border-t">
+                  <div className="p-3 space-y-2 bg-background border-t">
                     <ActionConfigFields
                       action={action}
                       onChange={(config) => updateAction(action.id, { config })}
+                      showValidation={action.type === 'product_purchase'}
                     />
                   </div>
                 )}
@@ -157,30 +162,45 @@ export function MultiActionEditor({ actions, onChange }: MultiActionEditorProps)
         </div>
       )}
 
-      <div className="space-y-1">
-        <Label className="text-xs">Add Action</Label>
-        <div className="flex flex-wrap gap-1">
-          {Object.entries(groupedActionTypes).map(([category, types]) => (
-            <div key={category} className="flex flex-wrap gap-1">
-              {types.slice(0, 3).map((type) => {
-                const Icon = ACTION_ICONS[type.value] || ExternalLink
-                return (
-                  <Button
-                    key={type.value}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => addAction(type.value)}
-                    className="h-7 text-xs"
-                  >
-                    <Icon className="h-3 w-3 mr-1" />
-                    {type.label}
-                  </Button>
-                )
-              })}
+      {/* Add Action Dropdown */}
+      <div className="relative">
+        <button
+          type="button"
+          onClick={() => setShowAddMenu(!showAddMenu)}
+          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md border border-dashed border-muted-foreground/30 hover:border-primary text-xs text-muted-foreground hover:text-primary transition-colors"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          Add Action
+        </button>
+
+        {showAddMenu && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setShowAddMenu(false)} />
+            <div className="absolute left-0 right-0 bottom-full mb-1 bg-background border rounded-md shadow-lg z-20 max-h-64 overflow-y-auto">
+              {Object.entries(groupedActionTypes).map(([category, types]) => (
+                <div key={category}>
+                  <div className="px-2 py-1 text-xs font-semibold text-muted-foreground bg-muted/50">
+                    {category}
+                  </div>
+                  {types.map((type) => {
+                    const Icon = ACTION_ICONS[type.value] || ExternalLink
+                    return (
+                      <button
+                        key={type.value}
+                        type="button"
+                        onClick={() => addAction(type.value)}
+                        className="w-full flex items-center gap-2 px-2 py-1.5 hover:bg-muted text-xs text-left"
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                        <span>{type.label}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          </>
+        )}
       </div>
     </div>
   )
@@ -189,9 +209,11 @@ export function MultiActionEditor({ actions, onChange }: MultiActionEditorProps)
 function ActionConfigFields({
   action,
   onChange,
+  showValidation = false,
 }: {
   action: Action
   onChange: (config: Record<string, any>) => void
+  showValidation?: boolean
 }) {
   const update = (key: string, value: any) => {
     onChange({ ...action.config, [key]: value })
@@ -204,7 +226,7 @@ function ActionConfigFields({
           <div className="space-y-1">
             <Label className="text-xs">URL</Label>
             <Input
-              className="text-xs"
+              className="text-xs h-8"
               value={action.config.url || ''}
               onChange={(e) => update('url', e.target.value)}
               placeholder="https://example.com"
@@ -216,11 +238,38 @@ function ActionConfigFields({
               id={`newTab-${action.id}`}
               checked={action.config.openInNewTab || false}
               onChange={(e) => update('openInNewTab', e.target.checked)}
-              className="h-4 w-4"
+              className="h-3.5 w-3.5"
             />
             <Label htmlFor={`newTab-${action.id}`} className="text-xs">
               Open in New Tab
             </Label>
+          </div>
+        </>
+      )
+
+    case 'internal_page':
+      return <InternalPageConfig action={action} onChange={onChange} />
+
+    case 'scroll_to_section':
+      return (
+        <>
+          <div className="space-y-1">
+            <Label className="text-xs">Section ID</Label>
+            <Input
+              className="text-xs h-8"
+              value={action.config.sectionId || ''}
+              onChange={(e) => update('sectionId', e.target.value)}
+              placeholder="pricing-section"
+            />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Offset (px)</Label>
+            <Input
+              className="text-xs h-8"
+              type="number"
+              value={action.config.offset || 0}
+              onChange={(e) => update('offset', parseInt(e.target.value) || 0)}
+            />
           </div>
         </>
       )
@@ -482,13 +531,15 @@ function ProductPurchaseConfig({
   }
 
   const product = products.find((p) => p.id === action.config.productId)
+  const needsVariant = product?.variants_enabled && variants.length > 0
+  const variantMissing = needsVariant && !action.config.variantId
 
   return (
     <>
       <div className="space-y-1">
         <Label className="text-xs">Product *</Label>
         <select
-          className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs"
+          className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs h-8"
           value={action.config.productId || ''}
           onChange={(e) => update('productId', e.target.value || null)}
         >
@@ -505,7 +556,7 @@ function ProductPurchaseConfig({
         <div className="space-y-1">
           <Label className="text-xs">Variant *</Label>
           <select
-            className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs"
+            className={`w-full rounded-md border bg-background px-2 py-1.5 text-xs h-8 ${variantMissing ? 'border-destructive' : 'border-input'}`}
             value={action.config.variantId || ''}
             onChange={(e) => update('variantId', e.target.value || null)}
           >
@@ -516,6 +567,9 @@ function ProductPurchaseConfig({
               </option>
             ))}
           </select>
+          {variantMissing && (
+            <p className="text-xs text-destructive">Please select a product variant.</p>
+          )}
         </div>
       )}
 
@@ -525,5 +579,53 @@ function ProductPurchaseConfig({
         </p>
       )}
     </>
+  )
+}
+
+function InternalPageConfig({
+  action,
+  onChange,
+}: {
+  action: Action
+  onChange: (config: Record<string, any>) => void
+}) {
+  const [pages, setPages] = useState<any[]>([])
+  const supabase = createBrowserClient()
+
+  useEffect(() => {
+    // Fetch all products that have published builder content
+    supabase
+      .from('products')
+      .select('id, name, slug')
+      .eq('status', 'active')
+      .eq('builder_published', true)
+      .order('name')
+      .then(({ data }) => setPages(data || []))
+  }, [])
+
+  const update = (key: string, value: any) => {
+    onChange({ ...action.config, [key]: value })
+  }
+
+  return (
+    <div className="space-y-1">
+      <Label className="text-xs">Page</Label>
+      <select
+        className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs h-8"
+        value={action.config.pageId || ''}
+        onChange={(e) => {
+          const page = pages.find(p => p.id === e.target.value)
+          update('pageId', e.target.value || null)
+          update('pageTitle', page?.name || '')
+        }}
+      >
+        <option value="">Select Page</option>
+        {pages.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+    </div>
   )
 }

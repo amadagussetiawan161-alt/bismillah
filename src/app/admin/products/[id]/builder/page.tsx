@@ -11,7 +11,8 @@ import {
   FileText, Layout, MoveVertical, Code, Monitor, Smartphone, Tablet,
   ImagePlus, X, Package, DollarSign, ArrowRight, Sparkles, Check,
   Shield, Users, Send, Mail, AlertCircle, Bell, Maximize2, PanelLeft,
-  Badge, Tag, CreditCard, Table, Heart, PanelTop
+  Badge, Tag, CreditCard, Table, Heart, PanelTop, ChevronLeft, ArrowLeft,
+  PanelLeftClose, PanelLeftOpen
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { MultiActionEditor } from '@/components/multi-action-editor'
@@ -205,7 +206,13 @@ function BlockPreview({ block }: { block: BuilderBlock }) {
     case 'product_description': return <div className="py-3 text-center text-xs text-muted-foreground">Product Description (auto)</div>
     case 'buy_button': return <div className="py-3 text-center"><span className="px-3 py-1 bg-primary text-white rounded text-xs">{content.text}</span></div>
     case 'html': return <div className="text-xs text-muted-foreground py-3 bg-muted rounded px-2">Custom HTML</div>
-    default: return <div className="text-xs text-muted-foreground py-3">Unknown block</div>
+    default: return (
+      <div className="py-3 px-3 bg-destructive/10 border border-destructive/30 rounded text-xs">
+        <p className="font-medium text-destructive">Unsupported Component</p>
+        <p className="text-muted-foreground">Type: {type}</p>
+        <p className="mt-1 text-muted-foreground">This block type is not recognized. Delete or replace it.</p>
+      </div>
+    )
   }
 }
 
@@ -548,7 +555,14 @@ function LivePreviewRenderer({ blocks, product, device }: { blocks: BuilderBlock
                   )
                 }
                 case 'html': return <div className="py-4 px-4" dangerouslySetInnerHTML={{ __html: content.code }} />
-                default: return null
+                default: return (
+                  <div className="py-4 px-4">
+                    <div className="p-4 bg-destructive/10 border border-destructive/30 rounded">
+                      <p className="text-sm font-medium text-destructive">Unsupported Component</p>
+                      <p className="text-xs text-muted-foreground">Type: {type}</p>
+                    </div>
+                  </div>
+                )
               }
             }
             return <div key={block.id}>{renderBlock()}</div>
@@ -962,6 +976,7 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
   const [onImageSelect, setOnImageSelect] = useState<((url: string) => void) | null>(null)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const [blockSearch, setBlockSearch] = useState('')
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const supabase = createBrowserClient()
 
   const filteredCategories = useMemo(() => {
@@ -1117,6 +1132,16 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-background">
         <div className="flex items-center gap-3">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => router.push(`/admin/products/${id}/edit`)}
+            className="h-8 px-2"
+          >
+            <ArrowLeft className="h-4 w-4 mr-1" />
+            Back
+          </Button>
+          <div className="h-4 w-px bg-border" />
           <h1 className="font-semibold text-sm">Builder: {product?.name}</h1>
           {published ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Published</span> : <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Draft</span>}
         </div>
@@ -1150,42 +1175,79 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
       ) : (
         <div className="flex-1 flex overflow-hidden">
           {/* Left Sidebar - Elements */}
-          <div className="w-56 border-r bg-muted/30 overflow-y-auto p-3">
-            <div className="mb-3">
-              <input
-                type="text"
-                placeholder="Search blocks..."
-                value={blockSearch}
-                onChange={(e) => setBlockSearch(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs"
-              />
+          <div className={`${sidebarCollapsed ? 'w-12' : 'w-64'} border-r bg-muted/30 transition-all duration-200 flex flex-col`}>
+            {/* Collapse/Expand Toggle */}
+            <div className="p-2 border-b bg-background/50 flex items-center justify-between">
+              {!sidebarCollapsed && (
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={blockSearch}
+                  onChange={(e) => setBlockSearch(e.target.value)}
+                  className="flex-1 rounded-md border border-input bg-background px-2 py-1 text-xs min-w-0"
+                />
+              )}
+              <button
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                className="p-1.5 hover:bg-muted rounded-md flex-shrink-0"
+                title={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              >
+                {sidebarCollapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
+              </button>
             </div>
-            {filteredCategories.map((cat) => (
-              <div key={cat.name} className="mb-4">
-                <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2">{cat.name}</h3>
-                <div className="grid grid-cols-2 gap-2">
-                  {cat.blocks.map((bt) => {
+            {/* Block List */}
+            <div className="flex-1 overflow-y-auto p-2">
+              {sidebarCollapsed ? (
+                /* Icons-only mode */
+                <div className="flex flex-col gap-1">
+                  {BLOCK_CATEGORIES.flatMap(cat => cat.blocks).slice(0, 12).map((bt) => {
                     const IconComp = getIconComponent(bt.icon)
                     return (
-                      <button key={bt.type} onClick={() => addBlock(bt.type)} className="flex flex-col items-center gap-1 p-2 rounded-md bg-background border hover:border-primary transition-colors text-xs">
-                        <IconComp className="h-4 w-4" />
-                        <span className="truncate w-full text-center">{bt.label}</span>
+                      <button
+                        key={bt.type}
+                        onClick={() => addBlock(bt.type)}
+                        className="p-2 rounded-md bg-background border hover:border-primary transition-colors"
+                        title={bt.label}
+                      >
+                        <IconComp className="h-4 w-4 mx-auto" />
                       </button>
                     )
                   })}
                 </div>
-              </div>
-            ))}
-            {filteredCategories.length === 0 && (
-              <div className="text-xs text-muted-foreground text-center py-4">
-                No blocks found
-              </div>
-            )}
+              ) : (
+                /* Full sidebar */
+                filteredCategories.map((cat) => (
+                  <div key={cat.name} className="mb-4">
+                    <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2 px-1">{cat.name}</h3>
+                    <div className="grid grid-cols-2 gap-1">
+                      {cat.blocks.map((bt) => {
+                        const IconComp = getIconComponent(bt.icon)
+                        return (
+                          <button
+                            key={bt.type}
+                            onClick={() => addBlock(bt.type)}
+                            className="flex flex-col items-center gap-1 p-2 rounded-md bg-background border hover:border-primary transition-colors text-xs"
+                          >
+                            <IconComp className="h-4 w-4" />
+                            <span className="truncate w-full text-center">{bt.label}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
+              {!sidebarCollapsed && filteredCategories.length === 0 && (
+                <div className="text-xs text-muted-foreground text-center py-4">
+                  No blocks found
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Center - Canvas */}
-          <div className="flex-1 overflow-y-auto bg-muted/20 p-6">
-            <div className="max-w-3xl mx-auto">
+          <div className="flex-1 overflow-y-auto bg-muted/20 flex justify-center p-6">
+            <div className="w-full max-w-4xl">
               {blocks.length === 0 && (
                 <div className="text-center py-20 text-muted-foreground">
                   <p>Click an element from the sidebar to add it here.</p>
