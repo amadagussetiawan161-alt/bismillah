@@ -16,6 +16,15 @@ const Dialog = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElem
 )
 Dialog.displayName = "Dialog"
 
+const DialogContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, children, ...props }, ref) => (
+    <div ref={ref} className={cn("", className)} {...props}>
+      {children}
+    </div>
+  )
+)
+DialogContent.displayName = "DialogContent"
+
 const DialogHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
     <div ref={ref} className={cn("flex flex-col space-y-1.5 mb-4", className)} {...props} />
@@ -44,4 +53,4 @@ const DialogFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLD
 )
 DialogFooter.displayName = "DialogFooter"
 
-export { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter }
+export { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter }

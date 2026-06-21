@@ -4,15 +4,18 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { createBrowserClient } from '@/lib/supabase/client'
+import { useI18n } from '@/lib/i18n'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Menu, X, ShoppingCart, User, LogOut, LayoutDashboard, Package } from 'lucide-react'
+import { Menu, X, ShoppingCart, User, LogOut, LayoutDashboard, Package, Globe } from 'lucide-react'
 
 export function Navbar() {
   const pathname = usePathname()
+  const { lang, t, setLang } = useI18n()
   const [user, setUser] = useState<{ id: string; email: string } | null>(null)
   const [cartCount, setCartCount] = useState(0)
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [langOpen, setLangOpen] = useState(false)
   const supabase = createBrowserClient()
 
   useEffect(() => {
@@ -36,9 +39,9 @@ export function Navbar() {
   }
 
   const navLinks = [
-    { href: '/', label: 'Home' },
-    { href: '/products', label: 'Products' },
-    { href: '/categories', label: 'Categories' },
+    { href: '/', label: t('nav_home', 'navbar') },
+    { href: '/products', label: t('nav_products', 'navbar') },
+    { href: '/categories', label: t('nav_categories', 'navbar') },
     { href: '/pricing', label: 'Pricing' },
     { href: '/contact', label: 'Contact' },
   ]
@@ -69,6 +72,20 @@ export function Navbar() {
           </nav>
 
           <div className="flex items-center gap-2">
+            {/* Language Switcher */}
+            <div className="relative">
+              <Button variant="ghost" size="sm" onClick={() => setLangOpen(!langOpen)} className="gap-1">
+                <Globe className="h-4 w-4" />
+                <span className="uppercase text-xs font-medium">{lang}</span>
+              </Button>
+              {langOpen && (
+                <div className="absolute right-0 top-full mt-1 bg-background border rounded-md shadow-lg py-1 z-50 min-w-[100px]">
+                  <button onClick={() => { setLang('en'); setLangOpen(false) }} className={`w-full text-left px-3 py-2 text-sm hover:bg-muted ${lang === 'en' ? 'bg-muted font-medium' : ''}`}>English</button>
+                  <button onClick={() => { setLang('id'); setLangOpen(false) }} className={`w-full text-left px-3 py-2 text-sm hover:bg-muted ${lang === 'id' ? 'bg-muted font-medium' : ''}`}>Indonesia</button>
+                </div>
+              )}
+            </div>
+
             {user ? (
               <>
                 <Link href="/dashboard/cart" className="relative">
@@ -94,10 +111,10 @@ export function Navbar() {
             ) : (
               <>
                 <Link href="/auth/login" className="hidden sm:inline-flex">
-                  <Button variant="ghost" size="sm">Login</Button>
+                  <Button variant="ghost" size="sm">{t('nav_login', 'navbar')}</Button>
                 </Link>
                 <Link href="/auth/register">
-                  <Button size="sm">Register</Button>
+                  <Button size="sm">{t('nav_register', 'navbar')}</Button>
                 </Link>
               </>
             )}
@@ -117,7 +134,7 @@ export function Navbar() {
               ))}
               {!user && (
                 <>
-                  <Link href="/auth/login" onClick={() => setMobileOpen(false)} className="px-4 py-2 text-sm font-medium text-muted-foreground">Login</Link>
+                  <Link href="/auth/login" onClick={() => setMobileOpen(false)} className="px-4 py-2 text-sm font-medium text-muted-foreground">{t('nav_login', 'navbar')}</Link>
                 </>
               )}
             </div>
