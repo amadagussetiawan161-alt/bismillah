@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Separator } from '@/components/ui/separator'
 import { createServerClient } from '@/lib/supabase/server'
@@ -24,6 +23,26 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
     }
   }
 
+  const getCtaUrl = () => {
+    switch (product.cta_type) {
+      case 'whatsapp': return product.whatsapp_number ? `https://wa.me/${product.whatsapp_number}` : '#'
+      case 'external_link': return product.external_url || '#'
+      case 'order_form': return '#'
+      default: return `/checkout?product=${product.slug}`
+    }
+  }
+
+  const getCtaLabel = () => {
+    switch (product.cta_type) {
+      case 'whatsapp': return 'Chat on WhatsApp'
+      case 'external_link': return 'Visit Link'
+      case 'order_form': return 'Order Now'
+      default: return 'Purchase Now'
+    }
+  }
+
+  const isExternal = product.cta_type === 'whatsapp' || product.cta_type === 'external_link'
+
   return (
     <div className="py-20">
       <div className="container mx-auto px-4">
@@ -31,7 +50,6 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
           <div>
             <div className="aspect-video relative bg-muted rounded-lg overflow-hidden">
               {product.image_url && <img src={product.image_url} alt={product.name} className="object-cover w-full h-full" />}
-              {product.is_featured && <Badge className="absolute top-4 left-4">Featured</Badge>}
               {!isAvailable && (
                 <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                   {getStatusBadge()}
@@ -60,7 +78,13 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               <div className="flex items-center gap-3"><Headphones className="h-5 w-5 text-primary" /><span className="text-sm">Premium support available</span></div>
             </div>
             {isAvailable ? (
-              <AddToCartButton productId={product.id} price={product.price} name={product.name} />
+              isExternal ? (
+                <a href={getCtaUrl()} target="_blank" rel="noopener noreferrer" className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-8 bg-primary text-primary-foreground hover:opacity-90">
+                  {getCtaLabel()}
+                </a>
+              ) : (
+                <AddToCartButton productId={product.id} price={product.price} name={product.name} />
+              )
             ) : (
               <button disabled className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-8 bg-muted text-muted-foreground cursor-not-allowed">
                 {product.status === 'sold_out' ? 'Sold Out' : 'Coming Soon'}

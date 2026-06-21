@@ -1,6 +1,7 @@
 import { createBrowserClient } from './client'
 
 const BUCKET_NAME = 'product-images'
+const DOWNLOADS_BUCKET = 'product-downloads'
 
 export async function uploadProductImage(file: File, productSlug: string): Promise<string | null> {
   const supabase = createBrowserClient()
@@ -28,6 +29,28 @@ export async function uploadProductImage(file: File, productSlug: string): Promi
   return publicUrl
 }
 
+export async function uploadProductDownload(file: File, productSlug: string): Promise<string | null> {
+  const supabase = createBrowserClient()
+
+  const ext = file.name.split('.').pop()?.toLowerCase()
+  const fileName = `${productSlug}-${Date.now()}.${ext}`
+  const filePath = `downloads/${fileName}`
+
+  const { error } = await supabase.storage
+    .from(DOWNLOADS_BUCKET)
+    .upload(filePath, file, {
+      cacheControl: '3600',
+      upsert: false,
+    })
+
+  if (error) {
+    console.error('Upload error:', error)
+    return null
+  }
+
+  return filePath
+}
+
 export async function deleteProductImage(imageUrl: string): Promise<boolean> {
   const supabase = createBrowserClient()
 
@@ -40,6 +63,21 @@ export async function deleteProductImage(imageUrl: string): Promise<boolean> {
 
   const { error } = await supabase.storage
     .from(BUCKET_NAME)
+    .remove([filePath])
+
+  if (error) {
+    console.error('Delete error:', error)
+    return false
+  }
+
+  return true
+}
+
+export async function deleteProductDownload(filePath: string): Promise<boolean> {
+  const supabase = createBrowserClient()
+
+  const { error } = await supabase.storage
+    .from(DOWNLOADS_BUCKET)
     .remove([filePath])
 
   if (error) {
@@ -63,4 +101,26 @@ export function validateImageFile(file: File): { valid: boolean; error?: string 
   }
 
   return { valid: true }
+}
+
+export function validateDownloadFile(file: File): { valid: boolean; error?: string } {
+  const allowedExts = ['zip', 'rar', 'pdf', 'apk', 'exe', 'dmg', 'docx', 'pptx', 'xlsx']
+  const maxSize = 100 * 1024 * 1024 // 100MB
+
+  const ext = file.name.split('.').pop()?.toLowerCase()
+  if (!ext || !allowedExts.includes(ext)) {
+    return { valid: false, error: 'Only ZIP, RAR, PDF, APK, EXE, DMG, DOCX, PPTX, XLSX files are allowed.' }
+  }
+
+  if (file.size > maxSize) {
+    return { valid: false, error: 'File size must be less than 100MB.' }
+  }
+
+  return { valid: true }
+}
+
+export function getDownloadUrl(filePath: string): string {
+  const supabase = createBrowserClient()
+  const { data } = supabase.storage.from(DOWNLOADS_BUCKET).getPublicUrl(filePath)
+  return data.publicUrl
 }

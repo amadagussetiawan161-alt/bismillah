@@ -3,53 +3,73 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import { createBrowserClient } from '@/lib/supabase/client'
-import { Key, Loader2, Copy } from 'lucide-react'
-import { toast } from 'sonner'
+import { Loader2, Key } from 'lucide-react'
 
-interface License { id: string; license_key: string; status: string; expires_at: string; product: { name: string } }
+interface LicenseItem {
+  id: string
+  product_name: string
+  license_key: string
+  status: string
+  expires_at: string | null
+  created_at: string
+}
 
 export default function LicensesPage() {
   const [loading, setLoading] = useState(true)
-  const [licenses, setLicenses] = useState<License[]>([])
+  const [licenses, setLicenses] = useState<LicenseItem[]>([])
   const supabase = createBrowserClient()
 
   useEffect(() => {
-    const fetchData = async () => {
+    const fetchLicenses = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-      const { data } = await supabase.from('licenses').select('id, license_key, status, expires_at, product:products(name)').eq('user_id', user.id).order('created_at', { ascending: false })
-      setLicenses((data as License[]) || [])
+      if (!user) { setLoading(false); return }
+
+      const { data } = await supabase
+        .from('user_licenses')
+        .select('id, license_key, status, expires_at, created_at, product:products(name)')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+
+      const formatted = (data || []).map((d: any) => ({
+        id: d.id,
+        product_name: d.product?.name || 'Unknown Product',
+        license_key: d.license_key,
+        status: d.status,
+        expires_at: d.expires_at,
+        created_at: d.created_at,
+      }))
+
+      setLicenses(formatted)
       setLoading(false)
     }
-    fetchData()
+    fetchLicenses()
   }, [])
-
-  const copyKey = (key: string) => { navigator.clipboard.writeText(key); toast.success('License key copied!') }
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin" /></div>
 
   return (
     <div>
-      <div className="mb-8"><h1 className="text-3xl font-bold">Licenses</h1><p className="text-muted-foreground">Your software license keys</p></div>
+      <h1 className="text-3xl font-bold mb-2">My Licenses</h1>
+      <p className="text-muted-foreground mb-8">View your product licenses</p>
+
       {licenses.length === 0 ? (
-        <Card><CardContent className="py-12 text-center"><Key className="h-12 w-12 mx-auto mb-4 text-muted-foreground" /><h3 className="font-semibold mb-2">No licenses</h3><p className="text-muted-foreground">Purchase a product to receive license keys</p></CardContent></Card>
+        <Card><CardContent className="py-12 text-center">
+          <Key className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+          <p className="text-muted-foreground">No licenses found.</p>
+        </CardContent></Card>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-4">
           {licenses.map((license) => (
             <Card key={license.id}>
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="font-semibold">{license.product?.name || 'License'}</h3>
-                    <div className="flex items-center gap-2 mt-2">
-                      <code className="text-sm bg-muted px-2 py-1 rounded">{license.license_key.slice(0, 8)}...{license.license_key.slice(-8)}</code>
-                      <Button variant="ghost" size="icon" onClick={() => copyKey(license.license_key)}><Copy className="h-4 w-4" /></Button>
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-2">Expires: {license.expires_at ? new Date(license.expires_at).toLocaleDateString() : 'Never'}</p>
-                  </div>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="font-semibold">{license.product_name}</h3>
                   <Badge variant={license.status === 'active' ? 'default' : 'secondary'}>{license.status}</Badge>
+                </div>
+                <div className="bg-muted rounded p-3 font-mono text-sm mb-2">{license.license_key}</div>
+                <div className="text-sm text-muted-foreground">
+                  {license.expires_at ? `Expires: ${new Date(license.expires_at).toLocaleDateString()}` : 'Lifetime License'}
                 </div>
               </CardContent>
             </Card>
