@@ -2,64 +2,40 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { createBrowserClient } from '@/lib/supabase/client'
 import {
-  Users, ShoppingCart, DollarSign, Package, Clock, UserPlus, FileText,
-  TrendingUp, TrendingDown, Eye, CreditCard, Key, Users2, Activity,
-  ArrowRight, Sparkles, AlertCircle, CheckCircle, XCircle, BarChart3,
-  LineChart, ArrowUpRight, ArrowDownRight
+  DollarSign, ShoppingCart, Users, Package, TrendingUp, TrendingDown,
+  ArrowUpRight, ArrowDownRight, Plus, Tag, BarChart3, Clock,
+  CheckCircle, AlertCircle, ExternalLink, ArrowRight
 } from 'lucide-react'
 import {
-  LineChart as RechartsLineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-  AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts'
+import { formatDistanceToNow } from 'date-fns'
 
-interface ActivityItem {
+interface Order {
   id: string
-  type: 'order' | 'user' | 'license' | 'affiliate'
-  title: string
-  description: string
-  time: string
-  status?: string
-}
-
-interface ChartData {
-  date: string
-  revenue: number
-  orders: number
-  users: number
+  order_number: string
+  status: string
+  total_amount: number
+  created_at: string
+  profiles: { email: string } | null
 }
 
 export default function AdminDashboardPage() {
-  const [stats, setStats] = useState({
-    revenueToday: 0,
-    revenueMonth: 0,
-    revenueTotal: 0,
-    revenueChange: 0,
-    ordersToday: 0,
-    ordersPending: 0,
-    ordersCompleted: 0,
-    ordersChange: 0,
-    productsActive: 0,
-    productsDraft: 0,
-    usersNew: 0,
-    usersTotal: 0,
-    usersChange: 0,
-    affiliatesActive: 0,
-    affiliatesPending: 0,
-    licensesActive: 0,
-    licensesExpired: 0,
-    recentActivity: [] as ActivityItem[],
-    chartData: [] as ChartData[],
-    topProducts: [] as { name: string; sales: number; revenue: number }[],
-    trafficSources: [] as { name: string; value: number; color: string }[],
-  })
-  const [period, setPeriod] = useState<'7d' | '30d' | '12m'>('30d')
   const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState({
+    revenue: { today: 0, month: 0, total: 0, change: 0 },
+    orders: { today: 0, pending: 0, total: 0, change: 0 },
+    users: { new: 0, total: 0, change: 0 },
+    products: { active: 0, total: 0 },
+    chartData: [] as { date: string; revenue: number }[],
+    recentOrders: [] as Order[],
+  })
+  const [period, setPeriod] = useState<'7d' | '30d' | '90d'>('30d')
   const supabase = createBrowserClient()
 
   useEffect(() => {
@@ -77,19 +53,16 @@ export default function AdminDashboardPage() {
     switch (period) {
       case '7d': periodStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000); break
       case '30d': periodStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); break
-      case '12m': periodStart = new Date(now.getFullYear() - 1, now.getMonth(), 1); break
+      case '90d': periodStart = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000); break
     }
 
-    const [users, orders, products, licenses, affiliates, orderItems] = await Promise.all([
-      supabase.from('profiles').select('id, created_at, role'),
-      supabase.from('orders').select('id, total_amount, status, created_at'),
-      supabase.from('products').select('id, status, name, sales_count'),
-      supabase.from('licenses').select('id, status, expires_at'),
-      supabase.from('affiliates').select('id, status'),
-      supabase.from('order_items').select('product_id, quantity, price, products(name)'),
+    const [users, orders, products] = await Promise.all([
+      supabase.from('profiles').select('id, created_at, email'),
+      supabase.from('orders').select('id, total_amount, status, created_at, order_number, profiles(email)'),
+      supabase.from('products').select('id, status'),
     ])
 
-    // Calculate revenue
+    // Revenue calculations
     const revenueToday = orders.data?.filter(o => o.status === 'paid' && new Date(o.created_at) >= todayStart)
       .reduce((sum, o) => sum + parseFloat(o.total_amount || '0'), 0) || 0
     const revenueMonth = orders.data?.filter(o => o.status === 'paid' && new Date(o.created_at) >= monthStart)
@@ -98,480 +71,269 @@ export default function AdminDashboardPage() {
       .reduce((sum, o) => sum + parseFloat(o.total_amount || '0'), 0) || 0
     const revenueTotal = orders.data?.filter(o => o.status === 'paid')
       .reduce((sum, o) => sum + parseFloat(o.total_amount || '0'), 0) || 0
-    const revenueChange = revenuePrevMonth > 0 ? ((revenueMonth - revenuePrevMonth) / revenuePrevMonth) * 100 : 0
 
-    // Orders
+    // Order calculations
     const ordersToday = orders.data?.filter(o => new Date(o.created_at) >= todayStart).length || 0
     const ordersPending = orders.data?.filter(o => o.status === 'pending').length || 0
-    const ordersCompleted = orders.data?.filter(o => o.status === 'paid').length || 0
+    const ordersTotal = orders.data?.filter(o => o.status === 'paid').length || 0
     const prevOrdersCount = orders.data?.filter(o => {
       const d = new Date(o.created_at)
       return d >= prevMonthStart && d < monthStart
     }).length || 0
-    const ordersChange = prevOrdersCount > 0 ? ((ordersCompleted - prevOrdersCount) / prevOrdersCount) * 100 : 0
 
-    // Products
-    const productsActive = products.data?.filter(p => p.status === 'active').length || 0
-    const productsDraft = products.data?.filter(p => p.status === 'draft' || p.status === 'coming_soon').length || 0
-
-    // Users
+    // User calculations
     const usersNew = users.data?.filter(u => new Date(u.created_at) >= periodStart).length || 0
     const usersTotal = users.data?.length || 0
     const prevUsersCount = users.data?.filter(u => {
       const d = new Date(u.created_at)
       return d >= prevMonthStart && d < monthStart
     }).length || 0
-    const usersChange = prevUsersCount > 0 ? ((usersNew - prevUsersCount) / prevUsersCount) * 100 : 0
 
-    // Affiliates
-    const affiliatesActive = affiliates.data?.filter(a => a.status === 'active').length || 0
-    const affiliatesPending = affiliates.data?.filter(a => a.status === 'pending').length || 0
+    // Product calculations
+    const productsActive = products.data?.filter(p => p.status === 'active').length || 0
+    const productsTotal = products.data?.length || 0
 
-    // Licenses
-    const nowTime = new Date()
-    const licensesActive = licenses.data?.filter(l => l.status === 'active' && (!l.expires_at || new Date(l.expires_at) > nowTime)).length || 0
-    const licensesExpired = licenses.data?.filter(l => l.status === 'expired' || (l.expires_at && new Date(l.expires_at) <= nowTime)).length || 0
-
-    // Generate chart data
-    const chartMap = new Map<string, { revenue: number; orders: number; users: number }>()
-
-    // Initialize all dates in period
-    for (let i = 0; i < (period === '7d' ? 7 : period === '30d' ? 30 : 12); i++) {
+    // Chart data
+    const chartMap = new Map<string, number>()
+    for (let i = 0; i < (period === '7d' ? 7 : period === '30d' ? 30 : 90); i++) {
       const date = new Date()
-      if (period === '12m') {
-        date.setMonth(date.getMonth() - i)
-        const key = date.toLocaleDateString('en-US', { month: 'short' })
-        chartMap.set(key, { revenue: 0, orders: 0, users: 0 })
-      } else {
-        date.setDate(date.getDate() - i)
-        const key = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-        chartMap.set(key, { revenue: 0, orders: 0, users: 0 })
-      }
+      date.setDate(date.getDate() - i)
+      const key = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      chartMap.set(key, 0)
     }
 
-    // Fill with actual data
-    orders.data?.filter(o => new Date(o.created_at) >= periodStart).forEach(o => {
+    orders.data?.filter(o => o.status === 'paid' && new Date(o.created_at) >= periodStart).forEach(o => {
       const date = new Date(o.created_at)
-      const key = period === '12m'
-        ? date.toLocaleDateString('en-US', { month: 'short' })
-        : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      const existing = chartMap.get(key) || { revenue: 0, orders: 0, users: 0 }
-      if (o.status === 'paid') existing.revenue += parseFloat(o.total_amount || '0')
-      existing.orders++
-      chartMap.set(key, { ...existing })
+      const key = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      const existing = chartMap.get(key) || 0
+      chartMap.set(key, existing + parseFloat(o.total_amount || '0'))
     })
 
-    users.data?.filter(u => new Date(u.created_at) >= periodStart).forEach(u => {
-      const date = new Date(u.created_at)
-      const key = period === '12m'
-        ? date.toLocaleDateString('en-US', { month: 'short' })
-        : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-      const existing = chartMap.get(key) || { revenue: 0, orders: 0, users: 0 }
-      existing.users++
-      chartMap.set(key, { ...existing })
-    })
+    const chartData = Array.from(chartMap.entries())
+      .map(([date, revenue]) => ({ date, revenue }))
+      .reverse()
 
-    const chartData = Array.from(chartMap.entries()).map(([date, data]) => ({
-      date,
-      ...data
-    })).reverse()
-
-    // Top products
-    const productSales = new Map<string, { sales: number; revenue: number }>()
-    orderItems.data?.forEach((item: any) => {
-      const name = item.products?.name || 'Unknown'
-      const existing = productSales.get(name) || { sales: 0, revenue: 0 }
-      existing.sales += item.quantity || 1
-      existing.revenue += parseFloat(item.price || '0')
-      productSales.set(name, { ...existing })
-    })
-
-    const topProducts = Array.from(productSales.entries())
-      .map(([name, data]) => ({ name, ...data }))
-      .sort((a, b) => b.revenue - a.revenue)
-      .slice(0, 5)
-
-    // Traffic sources (placeholder data)
-    const trafficSources = [
-      { name: 'Direct', value: 42, color: '#3b82f6' },
-      { name: 'Google', value: 28, color: '#22c55e' },
-      { name: 'Social Media', value: 18, color: '#f59e0b' },
-      { name: 'Referral', value: 12, color: '#8b5cf6' },
-    ]
-
-    // Build recent activity
-    const recentActivity: ActivityItem[] = []
+    // Recent orders
     const recentOrders = orders.data?.filter(o => o.status === 'paid')
       .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 3) || []
-    recentOrders.forEach(o => {
-      recentActivity.push({
-        id: o.id,
-        type: 'order',
-        title: 'New Order',
-        description: `$${parseFloat(o.total_amount || '0').toFixed(2)} received`,
-        time: o.created_at,
-        status: 'completed',
-      })
-    })
-
-    const recentUsers = users.data?.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 3) || []
-    recentUsers.forEach(u => {
-      recentActivity.push({
-        id: u.id,
-        type: 'user',
-        title: 'New User',
-        description: 'User registered',
-        time: u.created_at,
-      })
-    })
-
-    const recentLicenses = licenses.data?.filter(l => l.status === 'active')
-      .sort((a, b) => new Date(a.id).getTime() - new Date(b.id).getTime())
-      .slice(0, 2) || []
-    recentLicenses.forEach(l => {
-      recentActivity.push({
-        id: l.id,
-        type: 'license',
-        title: 'License Activated',
-        description: 'New license issued',
-        time: new Date().toISOString(),
-      })
-    })
-
-    recentActivity.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+      .slice(0, 5) || []
 
     setStats({
-      revenueToday,
-      revenueMonth,
-      revenueTotal,
-      revenueChange,
-      ordersToday,
-      ordersPending,
-      ordersCompleted,
-      ordersChange,
-      productsActive,
-      productsDraft,
-      usersNew,
-      usersTotal,
-      usersChange,
-      affiliatesActive,
-      affiliatesPending,
-      licensesActive,
-      licensesExpired,
-      recentActivity: recentActivity.slice(0, 8),
+      revenue: {
+        today: revenueToday,
+        month: revenueMonth,
+        total: revenueTotal,
+        change: revenuePrevMonth > 0 ? ((revenueMonth - revenuePrevMonth) / revenuePrevMonth) * 100 : 0
+      },
+      orders: {
+        today: ordersToday,
+        pending: ordersPending,
+        total: ordersTotal,
+        change: prevOrdersCount > 0 ? ((ordersTotal - prevOrdersCount) / prevOrdersCount) * 100 : 0
+      },
+      users: {
+        new: usersNew,
+        total: usersTotal,
+        change: prevUsersCount > 0 ? ((usersNew - prevUsersCount) / prevUsersCount) * 100 : 0
+      },
+      products: { active: productsActive, total: productsTotal },
       chartData,
-      topProducts,
-      trafficSources,
+      recentOrders,
     })
     setLoading(false)
   }
 
-  const kpis = [
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    if (hour < 12) return 'Good morning'
+    if (hour < 18) return 'Good afternoon'
+    return 'Good evening'
+  }
+
+  const kpiCards = [
     {
-      section: 'Revenue',
-      cards: [
-        { icon: DollarSign, label: 'Today', value: `$${stats.revenueToday.toFixed(2)}`, color: 'bg-emerald-500' },
-        { icon: DollarSign, label: 'This Month', value: `$${stats.revenueMonth.toFixed(2)}`, color: 'bg-emerald-600', change: stats.revenueChange },
-        { icon: DollarSign, label: 'Total Revenue', value: `$${stats.revenueTotal.toFixed(2)}`, color: 'bg-emerald-700' },
-      ]
+      title: 'Total Revenue',
+      value: `$${stats.revenue.total.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+      change: stats.revenue.change,
+      icon: DollarSign,
+      color: 'bg-emerald-50 text-emerald-600',
+      href: '/admin/payments'
     },
     {
-      section: 'Orders',
-      cards: [
-        { icon: ShoppingCart, label: 'Today', value: stats.ordersToday, color: 'bg-blue-500' },
-        { icon: Clock, label: 'Pending', value: stats.ordersPending, color: 'bg-amber-500' },
-        { icon: CheckCircle, label: 'Completed', value: stats.ordersCompleted, color: 'bg-green-500', change: stats.ordersChange },
-      ]
+      title: 'Total Orders',
+      value: stats.orders.total,
+      change: stats.orders.change,
+      icon: ShoppingCart,
+      color: 'bg-blue-50 text-blue-600',
+      href: '/admin/orders'
     },
     {
-      section: 'Products',
-      cards: [
-        { icon: Package, label: 'Active', value: stats.productsActive, color: 'bg-violet-500' },
-        { icon: FileText, label: 'Draft', value: stats.productsDraft, color: 'bg-gray-500' },
-      ]
+      title: 'Total Users',
+      value: stats.users.total,
+      change: stats.users.change,
+      icon: Users,
+      color: 'bg-violet-50 text-violet-600',
+      href: '/admin/users'
     },
     {
-      section: 'Users',
-      cards: [
-        { icon: UserPlus, label: 'New', value: stats.usersNew, color: 'bg-cyan-500', change: stats.usersChange },
-        { icon: Users, label: 'Total', value: stats.usersTotal, color: 'bg-cyan-600' },
-      ]
-    },
-    {
-      section: 'Affiliates',
-      cards: [
-        { icon: Users2, label: 'Active', value: stats.affiliatesActive, color: 'bg-pink-500' },
-        { icon: Clock, label: 'Pending', value: stats.affiliatesPending, color: 'bg-pink-400' },
-      ]
-    },
-    {
-      section: 'Licenses',
-      cards: [
-        { icon: Key, label: 'Active', value: stats.licensesActive, color: 'bg-indigo-500' },
-        { icon: XCircle, label: 'Expired', value: stats.licensesExpired, color: 'bg-red-500' },
-      ]
+      title: 'Active Products',
+      value: stats.products.active,
+      change: 0,
+      icon: Package,
+      color: 'bg-amber-50 text-amber-600',
+      href: '/admin/products'
     },
   ]
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'paid': return <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-0">Paid</Badge>
+      case 'pending': return <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-0">Pending</Badge>
+      default: return <Badge variant="secondary">{status}</Badge>
+    }
+  }
+
   const quickActions = [
-    { icon: Package, label: 'Create Product', href: '/admin/products/new' },
-    { icon: ShoppingCart, label: 'View Orders', href: '/admin/orders' },
-    { icon: Users2, label: 'Manage Affiliates', href: '/admin/affiliates' },
-    { icon: Key, label: 'Manage Licenses', href: '/admin/licenses' },
+    { icon: Plus, label: 'Add Product', href: '/admin/products/new' },
+    { icon: Tag, label: 'Create Coupon', href: '/admin/settings' },
+    { icon: BarChart3, label: 'View Reports', href: '/admin/reports' },
+  ]
+
+  const bottomStats = [
+    { label: 'New Users', value: stats.users.new, change: stats.users.change },
+    { label: 'Total Sales', value: `$${stats.revenue.month.toLocaleString('en-US', { minimumFractionDigits: 0 })}`, change: stats.revenue.change },
+    { label: 'Pending Orders', value: stats.orders.pending, change: 0 },
+    { label: 'Conversion Rate', value: '3.2%', change: 0.4 },
   ]
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">Overview of your SaaS platform</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex gap-1 p-1 bg-muted rounded-lg">
-            {(['7d', '30d', '12m'] as const).map((p) => (
-              <button
-                key={p}
-                onClick={() => setPeriod(p)}
-                className={`px-3 py-1 text-sm rounded-md transition-colors ${period === p ? 'bg-background shadow-sm font-medium' : 'text-muted-foreground hover:text-foreground'}`}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            Updated: {new Date().toLocaleTimeString()}
-          </div>
-        </div>
+    <div className="max-w-7xl mx-auto space-y-8">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-semibold text-slate-900">{getGreeting()}, Admin</h1>
+        <p className="text-slate-500 mt-1">Here's what's happening with your platform today.</p>
       </div>
 
-      {/* KPI Cards by Section */}
-      {kpis.map(section => (
-        <div key={section.section}>
-          <h2 className="text-sm font-semibold text-muted-foreground mb-3 uppercase tracking-wide">{section.section}</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            {section.cards.map((card) => (
-              <Card key={card.label} className="hover:shadow-md transition-shadow">
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <p className="text-xs text-muted-foreground">{card.label}</p>
-                      <p className="text-xl font-bold mt-1">{card.value}</p>
-                      {card.change !== undefined && (
-                        <div className={`flex items-center gap-1 mt-1 text-xs ${card.change >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {card.change >= 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                          {Math.abs(card.change).toFixed(1)}%
-                        </div>
-                      )}
-                    </div>
-                    <div className={`p-2 rounded-lg ${card.color}`}>
-                      <card.icon className="h-4 w-4 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      ))}
-
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Revenue Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              Revenue Trend
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={stats.chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                  <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" tickFormatter={(v) => `$${v}`} />
-                  <Tooltip formatter={(value: number) => [`$${value.toFixed(2)}`, 'Revenue']} />
-                  <Area type="monotone" dataKey="revenue" stroke="#22c55e" fill="#dcfce7" strokeWidth={2} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Orders Chart */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <ShoppingCart className="h-4 w-4" />
-              Orders Trend
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={stats.chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                  <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                  <Tooltip />
-                  <Bar dataKey="orders" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* User Growth */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              User Growth
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[250px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <RechartsLineChart data={stats.chartData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                  <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                  <YAxis tick={{ fontSize: 11 }} stroke="#9ca3af" />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="users" stroke="#8b5cf6" strokeWidth={2} dot={{ fill: '#8b5cf6', r: 4 }} />
-                </RechartsLineChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Traffic Sources */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Traffic Sources
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[250px] flex items-center justify-center">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={stats.trafficSources}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={60}
-                    outerRadius={90}
-                    paddingAngle={2}
-                    dataKey="value"
-                  >
-                    {stats.trafficSources.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-            <div className="grid grid-cols-2 gap-2 mt-4">
-              {stats.trafficSources.map((source) => (
-                <div key={source.name} className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: source.color }} />
-                  <span className="text-sm">{source.name}</span>
-                  <span className="text-sm text-muted-foreground ml-auto">{source.value}%</span>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Top Products */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" />
-            Top Products by Revenue
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {stats.topProducts.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">No product data yet</p>
-          ) : (
-            <div className="space-y-3">
-              {stats.topProducts.map((product, i) => (
-                <div key={product.name} className="flex items-center gap-4">
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center font-bold text-sm">
-                    {i + 1}
-                  </div>
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {kpiCards.map((kpi) => (
+          <Link key={kpi.title} href={kpi.href}>
+            <Card className="bg-white border-slate-200 card-shadow hover:card-shadow-hover transition-shadow cursor-pointer">
+              <CardContent className="p-5">
+                <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <p className="font-medium">{product.name}</p>
-                    <p className="text-sm text-muted-foreground">{product.sales} sales</p>
+                    <p className="text-sm text-slate-500">{kpi.title}</p>
+                    <p className="text-2xl font-semibold text-slate-900 mt-1">{kpi.value}</p>
+                    {kpi.change !== 0 && (
+                      <div className={`flex items-center gap-1 mt-2 text-sm ${kpi.change >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                        {kpi.change >= 0 ? <ArrowUpRight className="h-4 w-4" /> : <ArrowDownRight className="h-4 w-4" />}
+                        <span>{Math.abs(kpi.change).toFixed(1)}%</span>
+                        <span className="text-slate-400 ml-1">vs last month</span>
+                      </div>
+                    )}
                   </div>
-                  <div className="text-right">
-                    <p className="font-semibold">${product.revenue.toFixed(2)}</p>
+                  <div className={`p-2.5 rounded-xl ${kpi.color}`}>
+                    <kpi.icon className="h-5 w-5" />
                   </div>
                 </div>
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Chart - Left (70%) */}
+        <Card className="lg:col-span-2 bg-white border-slate-200 card-shadow">
+          <CardHeader className="flex flex-row items-center justify-between py-5">
+            <CardTitle className="text-base font-medium text-slate-900">Revenue Overview</CardTitle>
+            <div className="flex gap-1 p-1 bg-slate-100 rounded-lg">
+              {(['7d', '30d', '90d'] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setPeriod(p)}
+                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                    period === p ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-900'
+                  }`}
+                >
+                  {p}
+                </button>
               ))}
             </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Quick Actions & Recent Activity */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Quick Actions</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {quickActions.map((action) => (
-              <Link key={action.href} href={action.href}>
-                <Button variant="outline" className="w-full justify-start h-10">
-                  <action.icon className="h-4 w-4 mr-2" />
-                  {action.label}
-                  <ArrowRight className="h-3 w-3 ml-auto" />
-                </Button>
-              </Link>
-            ))}
+          <CardContent className="pb-6">
+            {loading ? (
+              <div className="h-[280px] flex items-center justify-center">
+                <div className="animate-pulse text-slate-400">Loading...</div>
+              </div>
+            ) : (
+              <div className="h-[280px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={stats.chartData}>
+                    <defs>
+                      <linearGradient id="revenueGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#2563eb" stopOpacity={0.1} />
+                        <stop offset="100%" stopColor="#2563eb" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" vertical={false} />
+                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} tickFormatter={(v) => `$${v}`} />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: '#1e293b',
+                        border: 'none',
+                        borderRadius: '8px',
+                        color: '#fff',
+                        fontSize: '12px',
+                      }}
+                      formatter={(value: number) => [`$${value.toFixed(2)}`, 'Revenue']}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="revenue"
+                      stroke="#2563eb"
+                      strokeWidth={2}
+                      fill="url(#revenueGradient)"
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            )}
           </CardContent>
         </Card>
 
-        <Card className="lg:col-span-2">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base">Recent Activity</CardTitle>
+        {/* Recent Orders - Right (30%) */}
+        <Card className="bg-white border-slate-200 card-shadow">
+          <CardHeader className="flex flex-row items-center justify-between py-5">
+            <CardTitle className="text-base font-medium text-slate-900">Recent Orders</CardTitle>
+            <Link href="/admin/orders" className="text-sm text-blue-600 hover:text-blue-700">
+              View all
+            </Link>
           </CardHeader>
           <CardContent>
-            {stats.recentActivity.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground text-sm">
-                <Activity className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                No recent activity
+            {stats.recentOrders.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-sm">
+                No recent orders
               </div>
             ) : (
               <div className="space-y-3">
-                {stats.recentActivity.map((activity) => (
-                  <div key={activity.id + activity.title} className="flex items-start gap-3 p-2 rounded-lg hover:bg-muted/50 transition-colors">
-                    <div className={`p-2 rounded-full ${
-                      activity.type === 'order' ? 'bg-green-100 text-green-600' :
-                      activity.type === 'user' ? 'bg-blue-100 text-blue-600' :
-                      activity.type === 'license' ? 'bg-purple-100 text-purple-600' :
-                      'bg-pink-100 text-pink-600'
-                    }`}>
-                      {activity.type === 'order' && <DollarSign className="h-3.5 w-3.5" />}
-                      {activity.type === 'user' && <UserPlus className="h-3.5 w-3.5" />}
-                      {activity.type === 'license' && <Key className="h-3.5 w-3.5" />}
-                      {activity.type === 'affiliate' && <Users2 className="h-3.5 w-3.5" />}
-                    </div>
+                {stats.recentOrders.map((order) => (
+                  <div key={order.id} className="flex items-center justify-between py-2">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{activity.title}</p>
-                      <p className="text-xs text-muted-foreground">{activity.description}</p>
+                      <p className="text-sm font-medium text-slate-900 truncate">
+                        {order.order_number || `#${order.id.slice(0, 8)}`}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {order.profiles?.email || 'Unknown'}
+                      </p>
                     </div>
-                    <div className="text-xs text-muted-foreground whitespace-nowrap">
-                      {new Date(activity.time).toLocaleDateString()}
+                    <div className="text-right ml-4">
+                      <p className="text-sm font-medium text-slate-900">
+                        ${Number(order.total_amount).toFixed(2)}
+                      </p>
+                      {getStatusBadge(order.status)}
                     </div>
                   </div>
                 ))}
@@ -580,6 +342,46 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {quickActions.map((action) => (
+          <Link key={action.label} href={action.href}>
+            <Card className="bg-white border-slate-200 card-shadow hover:card-shadow-hover transition-shadow cursor-pointer group">
+              <CardContent className="p-5 flex items-center gap-4">
+                <div className="p-3 rounded-xl bg-blue-50 text-blue-600 group-hover:bg-blue-100 transition-colors">
+                  <action.icon className="h-5 w-5" />
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium text-slate-900">{action.label}</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-slate-400 group-hover:text-slate-600 transition-colors" />
+              </CardContent>
+            </Card>
+          </Link>
+        ))}
+      </div>
+
+      {/* Bottom Stats */}
+      <Card className="bg-white border-slate-200 card-shadow">
+        <CardContent className="p-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {bottomStats.map((stat) => (
+              <div key={stat.label}>
+                <p className="text-sm text-slate-500">{stat.label}</p>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <p className="text-xl font-semibold text-slate-900">{stat.value}</p>
+                  {stat.change !== 0 && (
+                    <span className={`text-xs ${stat.change >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {stat.change >= 0 ? '+' : ''}{stat.change.toFixed(1)}%
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

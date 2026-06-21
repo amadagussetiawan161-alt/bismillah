@@ -1,14 +1,25 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Separator } from '@/components/ui/separator'
 import { createBrowserClient } from '@/lib/supabase/client'
-import { useEffect, useState } from 'react'
-import { Package, Key, Download, Gift, Bell, ArrowRight, Receipt, CreditCard, TrendingUp, Clock, CheckCircle, AlertCircle, ExternalLink, ShoppingBag, Star } from 'lucide-react'
-import { formatDistanceToNow } from 'date-fns'
+import {
+  Key, Package, Download, HelpCircle, ArrowRight,
+  CheckCircle, Clock, AlertCircle, ExternalLink, Calendar
+} from 'lucide-react'
+import { formatDistanceToNow, format } from 'date-fns'
+
+interface License {
+  id: string
+  license_key: string
+  status: string
+  expires_at: string | null
+  products: { name: string } | null
+  product_id: string
+}
 
 interface Order {
   id: string
@@ -18,38 +29,25 @@ interface Order {
   created_at: string
 }
 
-interface License {
-  id: string
-  license_key: string
-  status: string
-  expires_at: string | null
-  product: { name: string } | null
-  product_id: string
-  products: { name: string } | null
-}
-
 interface Product {
   id: string
-  product: { name: string; image_url: string | null } | null
   product_id: string
   products: { name: string; image_url: string | null } | null
 }
 
-interface AffiliateStats {
-  referrals_count: number
-  total_earnings: number
-  pending_earnings: number
-  paid_earnings: number
-}
-
 export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState({ products: 0, orders: 0, licenses: 0, activeLicenses: 0, transactions: 0, notifications: 0 })
-  const [recentOrders, setRecentOrders] = useState<Order[]>([])
-  const [licenses, setLicenses] = useState<License[]>([])
-  const [products, setProducts] = useState<Product[]>([])
-  const [affiliateStats, setAffiliateStats] = useState<AffiliateStats | null>(null)
   const [user, setUser] = useState<{ id: string; email: string } | null>(null)
+  const [profile, setProfile] = useState<{ created_at: string; email: string } | null>(null)
+  const [stats, setStats] = useState({
+    licenses: 0,
+    orders: 0,
+    downloads: 0,
+    tickets: 0,
+  })
+  const [licenses, setLicenses] = useState<License[]>([])
+  const [recentOrders, setRecentOrders] = useState<Order[]>([])
+  const [products, setProducts] = useState<Product[]>([])
 
   const supabase = createBrowserClient()
 
@@ -59,191 +57,161 @@ export default function DashboardPage() {
       if (!user) return
       setUser(user)
 
-      setLoading(true)
+      const { data: profileData } = await supabase.from('profiles').select('created_at, email').eq('user_id', user.id).single()
+      setProfile(profileData)
 
       // Fetch counts
-      const [productsData, ordersData, licensesData, transactionsData, notificationsData] = await Promise.all([
-        supabase.from('user_products').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
-        supabase.from('orders').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
-        supabase.from('licenses').select('id, status', { count: 'exact' }).eq('user_id', user.id),
-        supabase.from('transactions').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
-        supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', user.id).is('read_at', null),
+      const [licensesData, ordersData, productsData] = await Promise.all([
+        supabase.from('licenses').select('id', { count: 'exact' }).eq('user_id', user.id),
+        supabase.from('orders').select('id', { count: 'exact' }).eq('user_id', user.id),
+        supabase.from('user_products').select('id', { count: 'exact' }).eq('user_id', user.id),
       ])
 
-      const activeLicenses = (licensesData.data || []).filter((l: any) => l.status === 'active').length
-
       setStats({
-        products: productsData.count || 0,
-        orders: ordersData.count || 0,
         licenses: licensesData.count || 0,
-        activeLicenses,
-        transactions: transactionsData.count || 0,
-        notifications: notificationsData.count || 0,
+        orders: ordersData.count || 0,
+        downloads: productsData.count || 0,
+        tickets: 0,
       })
 
-      // Fetch recent orders
-      const { data: orders } = await supabase.from('orders').select('id, order_number, status, total_amount, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(5)
-      setRecentOrders((orders as Order[]) || [])
-
       // Fetch licenses
-      const { data: licenseData } = await supabase.from('licenses').select('id, license_key, status, expires_at, product_id, products(name)').eq('user_id', user.id).order('created_at', { ascending: false }).limit(5)
+      const { data: licenseData } = await supabase
+        .from('licenses')
+        .select('id, license_key, status, expires_at, product_id, products(name)')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(5)
       setLicenses((licenseData as License[]) || [])
 
-      // Fetch products
-      const { data: productData } = await supabase.from('user_products').select('id, product_id, products(name, image_url)').eq('user_id', user.id).order('created_at', { ascending: false }).limit(6)
-      setProducts((productData as Product[]) || [])
+      // Fetch recent orders
+      const { data: ordersData2 } = await supabase
+        .from('orders')
+        .select('id, order_number, status, total_amount, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(5)
+      setRecentOrders((ordersData2 as Order[]) || [])
 
-      // Fetch affiliate stats
-      const { data: affiliateData } = await supabase.from('affiliates').select('id').eq('user_id', user.id).single()
-      if (affiliateData) {
-        const { data: referrals } = await supabase.from('referrals').select('status, commission_amount').eq('affiliate_id', affiliateData.id)
-        if (referrals) {
-          const totalEarnings = referrals.reduce((sum: number, r: any) => sum + Number(r.commission_amount || 0), 0)
-          const pendingEarnings = referrals.filter((r: any) => r.status === 'pending').reduce((sum: number, r: any) => sum + Number(r.commission_amount || 0), 0)
-          const paidEarnings = referrals.filter((r: any) => r.status === 'paid').reduce((sum: number, r: any) => sum + Number(r.commission_amount || 0), 0)
-          setAffiliateStats({
-            referrals_count: referrals.length,
-            total_earnings: totalEarnings,
-            pending_earnings: pendingEarnings,
-            paid_earnings: paidEarnings,
-          })
-        }
-      }
+      // Fetch products
+      const { data: productData } = await supabase
+        .from('user_products')
+        .select('id, product_id, products(name, image_url)')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(6)
+      setProducts((productData as Product[]) || [])
 
       setLoading(false)
     }
     fetchData()
   }, [])
 
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    if (hour < 12) return 'Good morning'
+    if (hour < 18) return 'Good afternoon'
+    return 'Good evening'
+  }
+
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'paid': case 'active': return <CheckCircle className="h-4 w-4 text-green-500" />
-      case 'pending': return <Clock className="h-4 w-4 text-yellow-500" />
+      case 'active': case 'paid': return <CheckCircle className="h-4 w-4 text-emerald-500" />
+      case 'pending': return <Clock className="h-4 w-4 text-amber-500" />
       case 'expired': case 'cancelled': return <AlertCircle className="h-4 w-4 text-red-500" />
-      default: return <Clock className="h-4 w-4 text-gray-400" />
+      default: return <Clock className="h-4 w-4 text-slate-400" />
     }
   }
 
   const getStatusBadge = (status: string) => {
-    const variants: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
-      paid: 'default',
-      active: 'default',
-      pending: 'secondary',
-      expired: 'destructive',
-      cancelled: 'destructive',
+    switch (status) {
+      case 'active': case 'paid':
+        return <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border-0">Active</Badge>
+      case 'pending':
+        return <Badge className="bg-amber-50 text-amber-700 hover:bg-amber-50 border-0">Pending</Badge>
+      case 'expired':
+        return <Badge className="bg-red-50 text-red-700 hover:bg-red-50 border-0">Expired</Badge>
+      default:
+        return <Badge variant="secondary">{status}</Badge>
     }
-    return <Badge variant={variants[status] || 'outline'} className="text-xs">{status}</Badge>
   }
 
-  const cards = [
-    { icon: Package, label: 'My Orders', value: stats.orders, href: '/dashboard/orders', desc: 'View order history', color: 'text-blue-500', bg: 'bg-blue-50' },
-    { icon: Key, label: 'Active Licenses', value: stats.activeLicenses, href: '/dashboard/licenses', desc: `${stats.licenses} total licenses`, color: 'text-emerald-500', bg: 'bg-emerald-50' },
-    { icon: Download, label: 'Downloads', value: stats.products, href: '/dashboard/downloads', desc: 'Download products', color: 'text-purple-500', bg: 'bg-purple-50' },
-    { icon: Gift, label: 'Affiliate', value: affiliateStats?.referrals_count || 0, href: '/dashboard/affiliate', desc: affiliateStats ? `$${affiliateStats.total_earnings.toFixed(2)} earned` : 'Join affiliate program', color: 'text-orange-500', bg: 'bg-orange-50' },
+  const summaryCards = [
+    { icon: Key, label: 'Active Licenses', value: stats.licenses, color: 'bg-blue-50 text-blue-600' },
+    { icon: Package, label: 'Orders', value: stats.orders, color: 'bg-emerald-50 text-emerald-600' },
+    { icon: Download, label: 'Downloads', value: stats.downloads, color: 'bg-violet-50 text-violet-600' },
+    { icon: HelpCircle, label: 'Support Tickets', value: stats.tickets, color: 'bg-amber-50 text-amber-600' },
+  ]
+
+  const quickLinks = [
+    { icon: Download, label: 'Download Products', href: '/dashboard/downloads', desc: 'Access your purchased files' },
+    { icon: Key, label: 'Manage Licenses', href: '/dashboard/licenses', desc: 'View and activate licenses' },
+    { icon: Package, label: 'Billing & Invoices', href: '/dashboard/invoices', desc: 'Payment history and receipts' },
+    { icon: HelpCircle, label: 'Support Center', href: '/contact', desc: 'Get help from our team' },
   ]
 
   return (
-    <div className="space-y-8">
+    <div className="max-w-6xl mx-auto space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold">Member Dashboard</h1>
-        <p className="text-muted-foreground">Welcome back{user?.email ? `, ${user.email.split('@')[0]}` : ''}! Here's your account overview.</p>
+        <h1 className="text-2xl font-semibold text-slate-900">
+          {getGreeting()}, {user?.email?.split('@')[0]}
+        </h1>
+        <p className="text-slate-500 mt-1">Welcome back to your dashboard.</p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        {cards.map((card) => (
-          <Link key={card.label} href={card.href}>
-            <Card className="hover:shadow-md transition-all cursor-pointer border-muted/60">
-              <CardContent className="pt-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-sm text-muted-foreground">{card.label}</p>
-                    <p className="text-3xl font-bold mt-1">{card.value}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{card.desc}</p>
-                  </div>
-                  <div className={`p-3 rounded-xl ${card.bg}`}>
-                    <card.icon className={`h-6 w-6 ${card.color}`} />
-                  </div>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {summaryCards.map((card) => (
+          <Card key={card.label} className="bg-white border-slate-200 card-shadow">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3">
+                <div className={`p-2.5 rounded-xl ${card.color}`}>
+                  <card.icon className="h-5 w-5" />
                 </div>
-              </CardContent>
-            </Card>
-          </Link>
+                <div>
+                  <p className="text-2xl font-semibold text-slate-900">{card.value}</p>
+                  <p className="text-sm text-slate-500">{card.label}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         ))}
       </div>
 
       {/* Main Content Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Orders */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Receipt className="h-5 w-5" />
-                Recent Orders
-              </CardTitle>
-              <CardDescription>Your latest purchases</CardDescription>
-            </div>
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/dashboard/orders">View All <ArrowRight className="ml-2 h-4 w-4" /></Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {recentOrders.length === 0 ? (
-              <div className="text-center py-8">
-                <ShoppingBag className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
-                <p className="text-muted-foreground">No orders yet</p>
-                <Button size="sm" className="mt-3" asChild>
-                  <Link href="/products">Browse Products</Link>
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {recentOrders.map((order) => (
-                  <Link key={order.id} href={`/dashboard/orders`} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      {getStatusIcon(order.status)}
-                      <div>
-                        <p className="font-medium">{order.order_number || `Order #${order.id.slice(0, 8)}`}</p>
-                        <p className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="font-semibold">${Number(order.total_amount).toFixed(2)}</span>
-                      {getStatusBadge(order.status)}
-                    </div>
-                  </Link>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
         {/* Licenses */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Key className="h-5 w-5" />
-              My Licenses
-            </CardTitle>
-            <CardDescription>{stats.activeLicenses} active, {stats.licenses - stats.activeLicenses} expired</CardDescription>
+        <Card className="bg-white border-slate-200 card-shadow">
+          <CardHeader className="flex flex-row items-center justify-between py-5">
+            <CardTitle className="text-base font-medium text-slate-900">Active Licenses</CardTitle>
+            <Link href="/dashboard/licenses" className="text-sm text-blue-600 hover:text-blue-700">
+              View all
+            </Link>
           </CardHeader>
           <CardContent>
             {licenses.length === 0 ? (
-              <p className="text-muted-foreground text-center py-6 text-sm">No licenses found</p>
+              <div className="py-6 text-center text-slate-400 text-sm">
+                <Key className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                No licenses found
+              </div>
             ) : (
               <div className="space-y-3">
-                {licenses.map((license) => {
-                  const productName = license.products?.name || license.product?.name || 'Unknown Product'
-                  const isExpiringSoon = license.expires_at && new Date(license.expires_at) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+                {licenses.slice(0, 4).map((license) => {
+                  const isExpiring = license.expires_at &&
+                    new Date(license.expires_at) < new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
                   return (
-                    <div key={license.id} className="flex items-start justify-between p-2 rounded-lg bg-muted/30">
+                    <div key={license.id} className="flex items-start justify-between p-3 rounded-xl bg-slate-50">
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">{productName}</p>
-                        <p className="text-xs text-muted-foreground font-mono">{license.license_key?.slice(0, 16)}...</p>
+                        <p className="font-medium text-sm text-slate-900 truncate">
+                          {license.products?.name || 'Unknown Product'}
+                        </p>
+                        <p className="text-xs text-slate-500 font-mono mt-1">
+                          {license.license_key?.slice(0, 20)}...
+                        </p>
                         {license.expires_at && (
-                          <p className={`text-xs mt-1 ${isExpiringSoon ? 'text-orange-500' : 'text-muted-foreground'}`}>
-                            Expires: {new Date(license.expires_at).toLocaleDateString()}
+                          <p className={`text-xs mt-1 ${isExpiring ? 'text-amber-600' : 'text-slate-400'}`}>
+                            <Calendar className="h-3 w-3 inline mr-1" />
+                            {format(new Date(license.expires_at), 'MMM d, yyyy')}
                           </p>
                         )}
                       </div>
@@ -253,100 +221,106 @@ export default function DashboardPage() {
                 })}
               </div>
             )}
-            <Button variant="outline" size="sm" className="w-full mt-4" asChild>
-              <Link href="/dashboard/licenses">Manage Licenses</Link>
-            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Recent Orders */}
+        <Card className="bg-white border-slate-200 card-shadow">
+          <CardHeader className="flex flex-row items-center justify-between py-5">
+            <CardTitle className="text-base font-medium text-slate-900">Recent Orders</CardTitle>
+            <Link href="/dashboard/orders" className="text-sm text-blue-600 hover:text-blue-700">
+              View all
+            </Link>
+          </CardHeader>
+          <CardContent>
+            {recentOrders.length === 0 ? (
+              <div className="py-6 text-center text-slate-400 text-sm">
+                <Package className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                No orders yet
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {recentOrders.slice(0, 4).map((order) => (
+                  <div key={order.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50">
+                    <div className="flex items-center gap-3">
+                      {getStatusIcon(order.status)}
+                      <div>
+                        <p className="font-medium text-sm text-slate-900">
+                          {order.order_number || `#${order.id.slice(0, 8)}`}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {formatDistanceToNow(new Date(order.created_at), { addSuffix: true })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-sm text-slate-900">
+                        ${Number(order.total_amount).toFixed(2)}
+                      </p>
+                      {getStatusBadge(order.status)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Quick Access */}
+        <Card className="bg-white border-slate-200 card-shadow">
+          <CardHeader className="py-5">
+            <CardTitle className="text-base font-medium text-slate-900">Quick Access</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {quickLinks.map((link) => (
+              <Link key={link.href} href={link.href}>
+                <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors group">
+                  <div className="p-2 rounded-lg bg-slate-100 text-slate-600">
+                    <link.icon className="h-4 w-4" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm text-slate-900 group-hover:text-blue-600 transition-colors">
+                      {link.label}
+                    </p>
+                    <p className="text-xs text-slate-500">{link.desc}</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              </Link>
+            ))}
           </CardContent>
         </Card>
       </div>
 
-      {/* Products Owned */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <Download className="h-5 w-5" />
-              Products Owned
-            </CardTitle>
-            <CardDescription>{stats.products} digital products ready to download</CardDescription>
-          </div>
-          <Button variant="ghost" size="sm" asChild>
-            <Link href="/dashboard/downloads">View All <ArrowRight className="ml-2 h-4 w-4" /></Link>
-          </Button>
+      {/* Account Overview */}
+      <Card className="bg-white border-slate-200 card-shadow">
+        <CardHeader className="py-5">
+          <CardTitle className="text-base font-medium text-slate-900">Account Overview</CardTitle>
         </CardHeader>
         <CardContent>
-          {products.length === 0 ? (
-            <div className="text-center py-8">
-              <Package className="h-12 w-12 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-muted-foreground">No products purchased yet</p>
-              <Button size="sm" className="mt-3" asChild>
-                <Link href="/products">Explore Products</Link>
-              </Button>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            <div>
+              <p className="text-sm text-slate-500">Member Since</p>
+              <p className="text-base font-medium text-slate-900 mt-1">
+                {profile?.created_at ? format(new Date(profile.created_at), 'MMMM yyyy') : '-'}
+              </p>
             </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-              {products.map((p) => {
-                const product = p.products || p.product
-                return (
-                  <Link key={p.id} href={`/products/${p.product_id}`} className="group">
-                    <div className="aspect-square rounded-lg overflow-hidden bg-muted relative">
-                      {product?.image_url ? (
-                        <img src={product.image_url} alt={product?.name || 'Product'} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <ShoppingBag className="h-8 w-8 text-muted-foreground/30" />
-                        </div>
-                      )}
-                    </div>
-                    <p className="mt-2 text-sm font-medium truncate group-hover:text-primary transition-colors">{product?.name || 'Unknown'}</p>
-                  </Link>
-                )
-              })}
+            <div>
+              <p className="text-sm text-slate-500">Membership Plan</p>
+              <p className="text-base font-medium text-slate-900 mt-1">Free</p>
             </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Affiliate Stats (if applicable) */}
-      {affiliateStats && (
-        <Card className="bg-gradient-to-r from-orange-50 to-amber-50 border-orange-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-orange-700">
-              <TrendingUp className="h-5 w-5" />
-              Affiliate Performance
-            </CardTitle>
-            <CardDescription>Your earnings as an affiliate</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-6">
-              <div>
-                <p className="text-sm text-muted-foreground">Total Earned</p>
-                <p className="text-2xl font-bold text-orange-600">${affiliateStats.total_earnings.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Pending</p>
-                <p className="text-2xl font-bold text-yellow-600">${affiliateStats.pending_earnings.toFixed(2)}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Paid Out</p>
-                <p className="text-2xl font-bold text-green-600">${affiliateStats.paid_earnings.toFixed(2)}</p>
+            <div>
+              <p className="text-sm text-slate-500">Email</p>
+              <p className="text-base font-medium text-slate-900 mt-1 truncate">{user?.email}</p>
+            </div>
+            <div>
+              <p className="text-sm text-slate-500">Account Status</p>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="h-2 w-2 bg-emerald-500 rounded-full" />
+                <span className="text-base font-medium text-slate-900">Active</span>
               </div>
             </div>
-            <Button variant="outline" className="mt-4 border-orange-300" asChild>
-              <Link href="/dashboard/affiliate">View Affiliate Dashboard <ArrowRight className="ml-2 h-4 w-4" /></Link>
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Quick Actions */}
-      <Card>
-        <CardHeader><CardTitle>Quick Actions</CardTitle><CardDescription>Get things done faster</CardDescription></CardHeader>
-        <CardContent className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Button variant="outline" className="justify-between" asChild><Link href="/products">Browse Products <ArrowRight className="h-4 w-4" /></Link></Button>
-          <Button variant="outline" className="justify-between" asChild><Link href="/dashboard/orders">My Orders <ArrowRight className="h-4 w-4" /></Link></Button>
-          <Button variant="outline" className="justify-between" asChild><Link href="/dashboard/licenses">My Licenses <ArrowRight className="h-4 w-4" /></Link></Button>
-          <Button variant="outline" className="justify-between" asChild><Link href="/dashboard/settings">Account Settings <ArrowRight className="h-4 w-4" /></Link></Button>
+          </div>
         </CardContent>
       </Card>
     </div>
