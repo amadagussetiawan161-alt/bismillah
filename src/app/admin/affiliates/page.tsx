@@ -8,7 +8,7 @@ import { Loader2 } from 'lucide-react'
 
 export default function AdminAffiliatesPage() {
   const [loading, setLoading] = useState(true)
-  const [affiliates, setAffiliates] = useState<{ id: string; referral_code: string; total_earnings: number; total_referrals: number; status: string; user: { email: string } | null }[]>([])
+  const [affiliates, setAffiliates] = useState<{ id: string; referral_code: string; total_earnings: number; total_referrals: number; status: string; user: { email: string }[] | null }[]>([])
   const supabase = createBrowserClient()
 
   useEffect(() => {

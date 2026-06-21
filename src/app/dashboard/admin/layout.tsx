@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { redirect } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -12,22 +12,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<User | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const router = useRouter()
   const supabase = createBrowserClient()
 
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { redirect('/auth/login'); return }
+      if (!user) { router.push('/auth/login'); return }
       const { data: userRole } = await supabase.from('user_roles').select('role:roles(name)').eq('user_id', user.id).single()
       const roleName = (userRole?.role as { name?: string } | undefined)?.name
-      if (roleName !== 'admin') { redirect('/dashboard'); return }
+      if (roleName !== 'admin') { router.push('/dashboard'); return }
       setUser(user)
       setLoading(false)
     }
     checkAuth()
   }, [])
 
-  const handleLogout = async () => { await supabase.auth.signOut(); redirect('/auth/login') }
+  const handleLogout = async () => { await supabase.auth.signOut(); router.push('/auth/login') }
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>
 

@@ -33,7 +33,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
       </section>
       <section className="container mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {(products || []).map((product: { id: string; slug: string; name: string; short_description: string | null; price: number; compare_price: number | null; image_url: string | null; is_featured: boolean; status: string; rating_average: number; rating_count: number }) => (
+          {(products || []).map((product: { id: string; slug: string; name: string; short_description: string | null; price: number; compare_price: number | null; image_url: string | null; is_featured: boolean; status: string; rating_average: number | null; rating_count: number | null }) => (
             <Link key={product.id} href={`/products/${product.slug}`} className="group">
               <Card className="h-full hover:border-primary/50 transition-colors">
                 <CardContent className="p-0">
@@ -47,7 +47,7 @@ export default async function CategoryPage({ params }: { params: Promise<{ slug:
                     <p className="text-sm text-muted-foreground line-clamp-2 mb-2">{product.short_description}</p>
                     <div className="flex items-center justify-between">
                       <div><span className="text-lg font-bold">${product.price}</span>{product.compare_price && <span className="text-sm text-muted-foreground line-through ml-2">${product.compare_price}</span>}</div>
-                      {product.rating_count > 0 && <div className="flex items-center gap-1 text-sm"><Star className="h-4 w-4 fill-yellow-400 text-yellow-400" /><span>{product.rating_average.toFixed(1)}</span></div>}
+                      {product.rating_count && product.rating_count > 0 && <div className="flex items-center gap-1 text-sm"><Star className="h-4 w-4 fill-yellow-400 text-yellow-400" /><span>{product.rating_average?.toFixed(1)}</span></div>}
                     </div>
                   </div>
                 </CardContent>

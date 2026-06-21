@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState, useEffect, Suspense, useCallback } from 'react'
-import { useRouter, use } from 'next/navigation'
+import React, { useState, useEffect, Suspense, useCallback, use } from 'react'
+import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import {
@@ -9,7 +9,7 @@ import {
   ChevronUp, ChevronDown, Type, Image as ImageIcon, Video,
   Star, Clock, HelpCircle, ShoppingCart, Link2, GripVertical,
   FileText, Layout, MoveVertical, Code, Monitor, Smartphone, Tablet,
-  ImagePlus, X, Package, DollarSign, ArrowRight, Sparkles
+  ImagePlus, X, Package, DollarSign, ArrowRight, Sparkles, Check
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -946,7 +946,7 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
   }
 
   const addBlock = (type: string) => {
-    const newBlock: BuilderBlock = { id: crypto.randomUUID(), type, content: getDefaultContent(type) }
+    const newBlock: BuilderBlock = { id: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15), type, content: getDefaultContent(type) }
     setBlocks(prev => [...prev, newBlock])
     setSelectedBlockId(newBlock.id)
   }
@@ -963,7 +963,7 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
   const duplicateBlock = (blockId: string) => {
     const block = blocks.find(b => b.id === blockId)
     if (!block) return
-    const newBlock: BuilderBlock = { id: crypto.randomUUID(), type: block.type, content: JSON.parse(JSON.stringify(block.content)) }
+    const newBlock: BuilderBlock = { id: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15), type: block.type, content: JSON.parse(JSON.stringify(block.content)) }
     const idx = blocks.findIndex(b => b.id === blockId)
     setBlocks(prev => [...prev.slice(0, idx + 1), newBlock, ...prev.slice(idx + 1)])
     setSelectedBlockId(newBlock.id)
@@ -1018,7 +1018,7 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
   }
 
   const loadTemplate = (templateBlocks: BuilderBlock[]) => {
-    const blocksWithNewIds = templateBlocks.map(b => ({ ...b, id: crypto.randomUUID() }))
+    const blocksWithNewIds = templateBlocks.map(b => ({ ...b, id: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15) }))
     setBlocks(blocksWithNewIds)
     setTemplateDialogOpen(false)
     toast.success('Template loaded')

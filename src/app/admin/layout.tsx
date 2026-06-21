@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { redirect, usePathname } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
@@ -12,18 +12,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [user, setUser] = useState<{ id: string; email: string; role: string } | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const pathname = usePathname()
+  const router = useRouter()
   const supabase = createBrowserClient()
 
   useEffect(() => {
     const checkAuth = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { redirect('/auth/login'); return }
+      if (!user) { router.push('/auth/login'); return }
 
       const { data: profile } = await supabase.from('profiles').select('role').eq('user_id', user.id).single()
       const role = profile?.role || 'member'
-      const isAdmin = user.email?.toLowerCase() === 'admin@gmail.com' || role === 'admin'
+      const isAdmin = role === 'admin'
 
-      if (!isAdmin) { redirect('/dashboard'); return }
+      if (!isAdmin) { router.push('/dashboard'); return }
 
       setUser({ id: user.id, email: user.email || '', role })
       setLoading(false)
@@ -31,7 +32,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     checkAuth()
   }, [])
 
-  const handleLogout = async () => { await supabase.auth.signOut(); redirect('/auth/login') }
+  const handleLogout = async () => { await supabase.auth.signOut(); router.push('/auth/login') }
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>
 

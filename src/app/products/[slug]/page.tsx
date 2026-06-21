@@ -74,7 +74,7 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             <h1 className="text-3xl md:text-4xl font-bold mb-4">{product.name}</h1>
             {product.rating_count > 0 && (
               <div className="flex items-center gap-2 mb-4">
-                <div className="flex items-center gap-1">{[...Array(5)].map((_, i) => (<Star key={i} className={`h-5 w-5 ${i < Math.round(product.rating_average) ? 'fill-yellow-400 text-yellow-400' : 'text-muted'}`} />))}</div>
+                <div className="flex items-center gap-1">{[...Array(5)].map((_, i) => (<Star key={i} className={`h-5 w-5 ${i < Math.round(product.rating_average || 0) ? 'fill-yellow-400 text-yellow-400' : 'text-muted'}`} />))}</div>
                 <span className="text-muted-foreground">({product.rating_count} reviews)</span>
               </div>
             )}

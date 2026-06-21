@@ -20,7 +20,7 @@ interface Product {
   commission_type: string | null
   commission_value: number | null
   image_url: string | null
-  category: { name: string } | null
+  category: { name: string }[] | null
 }
 
 export default function AdminProductsPage() {

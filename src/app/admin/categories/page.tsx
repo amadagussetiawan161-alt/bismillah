@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { Loader2, Plus, Edit, Trash2 } from 'lucide-react'
+import { Label } from '@/components/ui/label'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 

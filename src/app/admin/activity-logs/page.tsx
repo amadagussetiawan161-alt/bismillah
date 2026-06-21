@@ -7,7 +7,7 @@ import { Loader2 } from 'lucide-react'
 
 export default function AdminActivityLogsPage() {
   const [loading, setLoading] = useState(true)
-  const [logs, setLogs] = useState<{ id: string; action: string; entity_type: string; details: object; created_at: string; user: { email: string } | null }[]>([])
+  const [logs, setLogs] = useState<{ id: string; action: string; entity_type: string; details: any; created_at: string; user: { email: string }[] | null }[]>([])
   const supabase = createBrowserClient()
 
   useEffect(() => {

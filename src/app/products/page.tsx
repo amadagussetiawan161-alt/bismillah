@@ -20,8 +20,8 @@ interface Product {
   image_url: string | null
   is_featured: boolean
   status: string
-  rating_average: number
-  rating_count: number
+  rating_average: number | null
+  rating_count: number | null
 }
 
 function ProductsList() {
@@ -133,7 +133,7 @@ function ProductsList() {
                         <p className="text-sm text-muted-foreground line-clamp-2 mb-2">{product.short_description}</p>
                         <div className="flex items-center justify-between">
                           <div><span className="text-lg font-bold">${product.price}</span>{product.compare_price && <span className="text-sm text-muted-foreground line-through ml-2">${product.compare_price}</span>}</div>
-                          {product.rating_count > 0 && <div className="flex items-center gap-1 text-sm"><Star className="h-4 w-4 fill-yellow-400 text-yellow-400" /><span>{product.rating_average.toFixed(1)}</span></div>}
+                          {product.rating_count && product.rating_count > 0 && <div className="flex items-center gap-1 text-sm"><Star className="h-4 w-4 fill-yellow-400 text-yellow-400" /><span>{product.rating_average?.toFixed(1)}</span></div>}
                         </div>
                       </div>
                     </CardContent>
