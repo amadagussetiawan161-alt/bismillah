@@ -5,23 +5,24 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { useEffect, useState } from 'react'
-import { Package, CreditCard, Key, Gift, ArrowRight } from 'lucide-react'
+import { Package, CreditCard, Key, Gift, ArrowRight, Receipt } from 'lucide-react'
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState({ products: 0, subscriptions: 0, licenses: 0, referrals: 0 })
+  const [stats, setStats] = useState({ products: 0, subscriptions: 0, licenses: 0, transactions: 0, referrals: 0 })
   const supabase = createBrowserClient()
 
   useEffect(() => {
     const fetchData = async () => {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const [products, subscriptions, licenses, referrals] = await Promise.all([
+      const [products, subscriptions, licenses, transactions, referrals] = await Promise.all([
         supabase.from('user_products').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
         supabase.from('subscriptions').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
         supabase.from('licenses').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+        supabase.from('transactions').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
         supabase.from('referrals').select('id', { count: 'exact', head: true }).eq('referrer_id', user.id),
       ])
-      setStats({ products: products.count || 0, subscriptions: subscriptions.count || 0, licenses: licenses.count || 0, referrals: referrals.count || 0 })
+      setStats({ products: products.count || 0, subscriptions: subscriptions.count || 0, licenses: licenses.count || 0, transactions: transactions.count || 0, referrals: referrals.count || 0 })
     }
     fetchData()
   }, [])
@@ -30,6 +31,7 @@ export default function DashboardPage() {
     { icon: Package, label: 'My Products', value: stats.products, href: '/dashboard/products', desc: 'View purchased products' },
     { icon: CreditCard, label: 'Subscriptions', value: stats.subscriptions, href: '/dashboard/subscriptions', desc: 'Manage subscriptions' },
     { icon: Key, label: 'Licenses', value: stats.licenses, href: '/dashboard/licenses', desc: 'View your licenses' },
+    { icon: Receipt, label: 'Transactions', value: stats.transactions, href: '/dashboard/transactions', desc: 'View transaction history' },
     { icon: Gift, label: 'Referrals', value: stats.referrals, href: '/dashboard/referrals', desc: 'Track your referrals' },
   ]
 

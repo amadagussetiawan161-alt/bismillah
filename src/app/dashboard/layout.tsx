@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Loader2, LayoutDashboard, Package, CreditCard, Key, Gift, Bell, Settings, LogOut, Menu, X } from 'lucide-react'
+import { Loader2, LayoutDashboard, Package, CreditCard, Key, Gift, Bell, Settings, LogOut, Menu, X, Receipt } from 'lucide-react'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
@@ -29,9 +29,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/dashboard' },
-    { icon: Package, label: 'Products', href: '/dashboard/products' },
+    { icon: Package, label: 'My Products', href: '/dashboard/products' },
     { icon: CreditCard, label: 'Subscriptions', href: '/dashboard/subscriptions' },
     { icon: Key, label: 'Licenses', href: '/dashboard/licenses' },
+    { icon: Receipt, label: 'Transactions', href: '/dashboard/transactions' },
     { icon: Gift, label: 'Referrals', href: '/dashboard/referrals' },
     { icon: Bell, label: 'Notifications', href: '/dashboard/notifications' },
     { icon: Settings, label: 'Settings', href: '/dashboard/settings' },
