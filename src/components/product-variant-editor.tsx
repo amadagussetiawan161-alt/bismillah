@@ -577,9 +577,9 @@ export function prepareVariantForSave(variant: Variant, productId: string, sortO
       break
   }
 
-  if (variant.id.startsWith('new-')) {
-    base.id = undefined
-  } else {
+  // Only include id for existing variants (updates)
+  // Let Supabase auto-generate UUID for new variants
+  if (!variant.id.startsWith('new-')) {
     base.id = variant.id
   }
 

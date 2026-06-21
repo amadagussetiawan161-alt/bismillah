@@ -1102,9 +1102,13 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
       builder_published: true,
       updated_at: new Date().toISOString(),
     }).eq('id', id)
-    if (error) toast.error('Publish failed: ' + error.message)
-    else { toast.success('Published!'); setPublished(true) }
-    setSaving(false)
+    if (error) {
+      toast.error('Publish failed: ' + error.message)
+      setSaving(false)
+    } else {
+      toast.success('Product published successfully!')
+      router.push('/admin/products')
+    }
   }
 
   const handleUnpublish = async () => {

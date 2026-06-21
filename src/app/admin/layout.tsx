@@ -71,8 +71,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { icon: CreditCard, label: 'Payments', href: '/admin/payments' },
     { icon: Key, label: 'Licenses', href: '/admin/licenses' },
     { icon: Users2, label: 'Affiliates', href: '/admin/affiliates' },
-    { icon: BarChart3, label: 'Analytics', href: '/admin/analytics' },
-    { icon: Activity, label: 'Activity Logs', href: '/admin/activity-logs' },
     { icon: FileText, label: 'Blog', href: '/admin/blog' },
     { icon: Settings, label: 'Site Settings', href: '/admin/settings' },
   ]

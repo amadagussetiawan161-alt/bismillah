@@ -142,6 +142,25 @@ export default function NewProductPage() {
     setLoading(true)
 
     const slug = form.slug || generateSlug(form.name)
+
+    // Check for duplicate name or slug
+    const { data: existingProducts } = await supabase
+      .from('products')
+      .select('id, name, slug')
+      .or(`name.eq.${form.name},slug.eq.${slug}`)
+
+    if (existingProducts && existingProducts.length > 0) {
+      const duplicateName = existingProducts.find(p => p.name.toLowerCase() === form.name.toLowerCase())
+      const duplicateSlug = existingProducts.find(p => p.slug === slug)
+      if (duplicateName) {
+        toast.error('Product name already exists. Please choose a different name.')
+      } else if (duplicateSlug) {
+        toast.error('Slug already exists. Please choose a different slug.')
+      }
+      setLoading(false)
+      return
+    }
+
     let imageUrl: string | null = null
     let downloadFilePath: string | null = null
 
@@ -191,7 +210,7 @@ export default function NewProductPage() {
     const { data, error } = await supabase.from('products').insert(payload).select('id').single()
 
     if (error) {
-      toast.error(error.message)
+      toast.error('Failed to save product: ' + error.message)
       setLoading(false)
       return
     }
@@ -201,6 +220,8 @@ export default function NewProductPage() {
       const variantPayloads = variants.map((v, idx) => prepareVariantForSave(v, data.id, idx))
       const { error: variantError } = await supabase.from('product_variants').insert(variantPayloads)
       if (variantError) {
+        // Rollback - delete the product since variants failed
+        await supabase.from('products').delete().eq('id', data.id)
         toast.error('Failed to save variants: ' + variantError.message)
         setLoading(false)
         return

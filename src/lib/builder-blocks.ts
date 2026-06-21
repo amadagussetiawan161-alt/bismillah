@@ -38,6 +38,18 @@ export const BLOCK_CATEGORIES = [
     ],
   },
   {
+    name: 'CTA',
+    description: 'Call to action blocks',
+    blocks: [
+      { type: 'cta_button', label: 'CTA Button', icon: 'ShoppingCart', supportsActions: true },
+      { type: 'cta_banner', label: 'CTA Banner', icon: 'ShoppingCart', supportsActions: true },
+      { type: 'cta_card', label: 'CTA Card', icon: 'ShoppingCart', supportsActions: true },
+      { type: 'cta_section', label: 'CTA Section', icon: 'ShoppingCart', supportsActions: true },
+      { type: 'floating_cta', label: 'Floating CTA', icon: 'ShoppingCart', supportsActions: true },
+      { type: 'sticky_cta', label: 'Sticky CTA Bar', icon: 'ShoppingCart', supportsActions: true },
+    ],
+  },
+  {
     name: 'Media',
     description: 'Images and videos',
     blocks: [
@@ -46,14 +58,10 @@ export const BLOCK_CATEGORIES = [
       { type: 'video', label: 'Video', icon: 'Video' },
       { type: 'image_banner', label: 'Image Banner', icon: 'ImageIcon', supportsActions: true },
       { type: 'image_overlay', label: 'Image + Button Overlay', icon: 'ImageIcon', supportsActions: true },
-      { type: 'image_hotspot', label: 'Image Hotspot', icon: 'ImageIcon', supportsActions: true },
       { type: 'carousel', label: 'Image Carousel', icon: 'ImageIcon' },
-      { type: 'auto_slider', label: 'Auto Slider', icon: 'ImageIcon' },
       { type: 'before_after', label: 'Before / After Image', icon: 'ImageIcon' },
-      { type: 'lightbox', label: 'Lightbox Gallery', icon: 'ImageIcon' },
       { type: 'bg_video', label: 'Background Video', icon: 'Video' },
       { type: 'youtube', label: 'YouTube Embed', icon: 'Video' },
-      { type: 'vimeo', label: 'Vimeo Embed', icon: 'Video' },
     ],
   },
   {
@@ -67,27 +75,48 @@ export const BLOCK_CATEGORIES = [
       { type: 'hero_countdown', label: 'Hero Countdown', icon: 'Clock' },
       { type: 'features', label: 'Features', icon: 'Star' },
       { type: 'pricing', label: 'Pricing', icon: 'DollarSign' },
-      { type: 'testimonials', label: 'Testimonials', icon: 'Star' },
-      { type: 'testimonial_carousel', label: 'Testimonial Carousel', icon: 'Star' },
       { type: 'faq', label: 'FAQ', icon: 'HelpCircle' },
       { type: 'countdown', label: 'Countdown', icon: 'Clock' },
+    ],
+  },
+  {
+    name: 'Features',
+    description: 'Feature highlighting',
+    blocks: [
+      { type: 'feature_grid', label: 'Feature Grid', icon: 'Star' },
+      { type: 'feature_list', label: 'Feature List', icon: 'CheckCircle' },
+      { type: 'feature_cards', label: 'Feature Cards', icon: 'Star' },
+      { type: 'feature_comparison', label: 'Feature Comparison', icon: 'Table' },
+      { type: 'feature_timeline', label: 'Feature Timeline', icon: 'Clock' },
+    ],
+  },
+  {
+    name: 'Testimonials',
+    description: 'Social proof',
+    blocks: [
+      { type: 'testimonials', label: 'Testimonials', icon: 'Star' },
+      { type: 'testimonial_card', label: 'Testimonial Card', icon: 'Star' },
+      { type: 'testimonial_carousel', label: 'Testimonial Carousel', icon: 'Star' },
+      { type: 'video_testimonial', label: 'Video Testimonial', icon: 'Video' },
+      { type: 'grid_testimonials', label: 'Grid Testimonials', icon: 'Star' },
+      { type: 'rating_testimonials', label: 'Rating Testimonials', icon: 'Star' },
     ],
   },
   {
     name: 'Sales',
     description: 'Sales-focused blocks',
     blocks: [
-      { type: 'offer_box', label: 'Offer Box', icon: 'Package' },
-      { type: 'cta', label: 'CTA Section', icon: 'ShoppingCart', supportsActions: true },
+      { type: 'offer_box', label: 'Offer Box', icon: 'Package', supportsActions: true },
+      { type: 'offer_stack', label: 'Offer Stack', icon: 'Package', supportsActions: true },
       { type: 'guarantee', label: 'Guarantee Box', icon: 'Shield' },
       { type: 'benefits', label: 'Benefits List', icon: 'CheckCircle' },
       { type: 'comparison', label: 'Comparison Table', icon: 'Table' },
-      { type: 'product_showcase', label: 'Product Showcase', icon: 'Package' },
+      { type: 'product_showcase', label: 'Product Showcase', icon: 'Package', supportsActions: true },
       { type: 'product_grid', label: 'Product Grid', icon: 'Package' },
       { type: 'product_carousel', label: 'Product Carousel', icon: 'Package' },
       { type: 'promo_banner', label: 'Promo Banner', icon: 'Sparkles' },
-      { type: 'coupon', label: 'Coupon Section', icon: 'Tag' },
-      { type: 'scarcity', label: 'Scarcity Notice', icon: 'AlertCircle' },
+      { type: 'countdown_pro', label: 'Countdown Pro', icon: 'Clock' },
+      { type: 'scarcity_banner', label: 'Scarcity Banner', icon: 'AlertCircle' },
       { type: 'stock_counter', label: 'Stock Counter', icon: 'Package' },
     ],
   },
@@ -101,7 +130,6 @@ export const BLOCK_CATEGORIES = [
       { type: 'review_cards', label: 'Review Cards', icon: 'Star' },
       { type: 'star_ratings', label: 'Star Ratings', icon: 'Star' },
       { type: 'purchase_popup', label: 'Purchase Notification', icon: 'Bell' },
-      { type: 'social_popup', label: 'Social Proof Popup', icon: 'Users' },
     ],
   },
   {
@@ -111,24 +139,22 @@ export const BLOCK_CATEGORIES = [
       { type: 'contact_form', label: 'Contact Form', icon: 'FileText' },
       { type: 'email_form', label: 'Email Form', icon: 'Mail' },
       { type: 'lead_form', label: 'Lead Capture Form', icon: 'Users' },
-      { type: 'multistep_form', label: 'Multi-Step Form', icon: 'FileText' },
       { type: 'newsletter', label: 'Newsletter Form', icon: 'Mail' },
-      { type: 'survey', label: 'Survey Form', icon: 'FileText' },
     ],
   },
   {
-    name: 'Checkout',
-    description: 'Payment blocks',
+    name: 'Orders',
+    description: 'Order and checkout',
     blocks: [
+      { type: 'order_form', label: 'Order Form', icon: 'ShoppingCart' },
+      { type: 'custom_order_form', label: 'Custom Order Form', icon: 'ShoppingCart' },
       { type: 'checkout_button', label: 'Checkout Button', icon: 'ShoppingCart', supportsActions: true },
       { type: 'order_summary', label: 'Order Summary', icon: 'FileText' },
       { type: 'product_selector', label: 'Product Selector', icon: 'Package' },
       { type: 'variant_selector', label: 'Variant Selector', icon: 'Package' },
       { type: 'coupon_input', label: 'Coupon Input', icon: 'Tag' },
-      { type: 'payment_selector', label: 'Payment Method', icon: 'CreditCard' },
       { type: 'order_bump', label: 'Order Bump', icon: 'Package' },
       { type: 'upsell', label: 'Upsell Block', icon: 'Package' },
-      { type: 'cross_sell', label: 'Cross-Sell Block', icon: 'Package' },
     ],
   },
   {
@@ -137,13 +163,10 @@ export const BLOCK_CATEGORIES = [
     blocks: [
       { type: 'popup_trigger', label: 'Popup Trigger', icon: 'Maximize2' },
       { type: 'modal', label: 'Modal', icon: 'Maximize2' },
-      { type: 'slide_in', label: 'Slide-In Panel', icon: 'PanelLeft' },
       { type: 'floating_button', label: 'Floating Button', icon: 'Plus', supportsActions: true },
       { type: 'floating_whatsapp', label: 'Floating WhatsApp', icon: 'MessageCircle', supportsActions: true },
       { type: 'floating_telegram', label: 'Floating Telegram', icon: 'Send', supportsActions: true },
-      { type: 'floating_cta', label: 'Floating CTA', icon: 'ShoppingCart', supportsActions: true },
       { type: 'sticky_bar', label: 'Sticky CTA Bar', icon: 'ShoppingCart', supportsActions: true },
-      { type: 'sticky_button', label: 'Sticky Buy Button', icon: 'ShoppingCart', supportsActions: true },
     ],
   },
   {
@@ -193,6 +216,14 @@ export function getDefaultBlockContent(type: string): Record<string, any> {
     case 'alert': return { type: 'info', title: 'Information', message: 'This is an alert message', icon: true }
     case 'progress': return { value: 60, max: 100, showLabel: true, label: '60%', color: 'primary' }
 
+    // CTA
+    case 'cta_button': return { text: 'Get Started Now', style: 'primary', size: 'lg', align: 'center', fullWidth: true, actions: defaultActions }
+    case 'cta_banner': return { title: 'Limited Time Offer', text: 'Get 50% off today!', buttonText: 'Claim Now', bgColor: '#0f172a', textColor: '#ffffff', actions: defaultActions }
+    case 'cta_card': return { title: 'Ready to Start?', text: 'Join thousands of satisfied customers.', buttonText: 'Get Started', bgColor: '#f1f5f9', actions: defaultActions }
+    case 'cta_section': return { title: 'Transform Your Business Today', text: 'Take action now and see results.', buttonText: 'Start Now', align: 'center', bgColor: '#0f172a', textColor: '#ffffff', actions: defaultActions }
+    case 'floating_cta': return { text: 'Buy Now', position: 'bottom-right', bgColor: '#0f172a', actions: defaultActions }
+    case 'sticky_cta': return { text: 'Special offer ends soon!', buttonText: 'Get It Now', bgColor: '#dc2626', actions: defaultActions }
+
     // Media
     case 'image': return { src: '', alt: '', width: '100%', height: 'auto', borderRadius: '12', align: 'center', caption: '', actions: defaultActions }
     case 'gallery': return { images: [], columns: '3', gap: '16', borderRadius: '12' }
@@ -216,14 +247,27 @@ export function getDefaultBlockContent(type: string): Record<string, any> {
     case 'hero_countdown': return { title: 'Limited Time Offer', subtitle: 'Offer ends soon', targetDate: '', bgImage: '', bgColor: '#0f172a', height: '500', actions: defaultActions }
     case 'features': return { items: [{ title: 'Feature 1', description: 'Description text', icon: 'Star' }], columns: '3', align: 'center' }
     case 'pricing': return { title: 'Simple Pricing', price: '$99', period: 'one-time', features: ['Feature 1', 'Feature 2', 'Feature 3'], buttonText: 'Buy Now', highlighted: false, align: 'center', actions: defaultActions }
-    case 'testimonials': return { items: [{ name: 'John Doe', role: 'Customer', text: 'Great product!', avatar: '', rating: '5' }], columns: '2', align: 'center' }
-    case 'testimonial_carousel': return { items: [{ name: 'John Doe', role: 'Customer', text: 'Great product!', avatar: '', rating: '5' }], autoplay: true, autoplaySpeed: 5000 }
     case 'faq': return { items: [{ question: 'Question?', answer: 'Answer.' }], align: 'left' }
     case 'countdown': return { targetDate: '', label: 'Offer ends in:', style: 'modern', align: 'center' }
 
+    // Features
+    case 'feature_grid': return { items: [{ title: 'Feature 1', description: 'Description', icon: 'Star' }], columns: '3' }
+    case 'feature_list': return { items: [{ title: 'Feature 1', description: 'Description', icon: 'CheckCircle' }], style: 'list' }
+    case 'feature_cards': return { items: [{ title: 'Feature 1', description: 'Description', icon: 'Star', color: '#0f172a' }], columns: '3' }
+    case 'feature_comparison': return { title: 'Compare Features', columns: [{ name: 'Basic', features: ['Feature 1', 'Feature 2'] }], highlightColumn: 1 }
+    case 'feature_timeline': return { items: [{ title: 'Step 1', description: 'Description', icon: 'Clock' }], orientation: 'vertical' }
+
+    // Testimonials
+    case 'testimonials': return { items: [{ name: 'John Doe', role: 'Customer', text: 'Great product!', avatar: '', rating: '5' }], columns: '2', align: 'center' }
+    case 'testimonial_card': return { name: 'John Doe', role: 'Customer', text: 'Great product!', avatar: '', rating: '5' }
+    case 'testimonial_carousel': return { items: [{ name: 'John Doe', role: 'Customer', text: 'Great product!', avatar: '', rating: '5' }], autoplay: true, autoplaySpeed: 5000 }
+    case 'video_testimonial': return { name: 'John Doe', role: 'Customer', videoUrl: '', thumbnail: '' }
+    case 'grid_testimonials': return { items: [{ name: 'John Doe', text: 'Great product!', rating: '5' }], columns: '3' }
+    case 'rating_testimonials': return { items: [{ name: 'John Doe', rating: 5, text: 'Excellent!' }], showStars: true }
+
     // Sales
     case 'offer_box': return { title: 'Special Offer', description: 'Get 50% off today!', badge: 'Limited', bgColor: '#f1f5f9', borderColor: 'primary', actions: defaultActions }
-    case 'cta': return { title: 'Ready to get started?', text: 'Join thousands of satisfied customers.', buttonText: 'Buy Now', align: 'center', bgColor: '#f1f5f9', actions: defaultActions }
+    case 'offer_stack': return { items: [{ title: 'Main Product', price: '$99', description: 'Core offering' }], totalText: 'Total Value:', actions: defaultActions }
     case 'guarantee': return { title: '30-Day Money Back Guarantee', description: 'Not satisfied? Get a full refund.', icon: 'Shield', bgColor: '#f0fdf4' }
     case 'benefits': return { title: 'Benefits', items: [{ icon: 'Check', text: 'Benefit 1' }], style: 'list' }
     case 'comparison': return { title: 'Compare Plans', columns: [{ name: 'Basic', features: ['Feature 1', 'Feature 2'] }], highlightColumn: 1 }
@@ -231,9 +275,9 @@ export function getDefaultBlockContent(type: string): Record<string, any> {
     case 'product_grid': return { category: null, limit: 6, columns: '3', showPrice: true, showBuyButton: true }
     case 'product_carousel': return { category: null, limit: 8, autoplay: true, autoplaySpeed: 4000 }
     case 'promo_banner': return { text: 'Get 50% off today! Use code: SAVE50', bgColor: '#dc2626', textColor: '#ffffff', dismissible: true }
-    case 'coupon': return { code: 'SAVE50', description: '50% off your purchase', bgColor: '#f1f5f9' }
-    case 'scarcity': return { text: 'Only 5 left in stock!', icon: true, bgColor: '#fef2f2', textColor: '#dc2626' }
-    case 'stock_counter': return { stock: 10, lowThreshold: 5, showProgress: true }
+    case 'countdown_pro': return { targetDate: '', label: 'Offer ends in:', style: 'modern', showDays: true, showHours: true, showMinutes: true, align: 'center' }
+    case 'scarcity_banner': return { text: 'Only 5 left in stock!', subtext: 'Order now before they are gone', bgColor: '#fef2f2', textColor: '#dc2626' }
+    case 'stock_counter': return { stock: 10, lowThreshold: 5, showProgress: true, color: '#16a34a' }
 
     // Trust
     case 'trust_badges': return { badges: ['Secure', 'Verified', 'Guaranteed'], layout: 'horizontal' }
@@ -248,20 +292,18 @@ export function getDefaultBlockContent(type: string): Record<string, any> {
     case 'contact_form': return { fields: ['name', 'email', 'message'], submitText: 'Send Message', successMessage: 'Thank you!' }
     case 'email_form': return { placeholder: 'Enter your email', submitText: 'Subscribe', successMessage: 'Subscribed!' }
     case 'lead_form': return { title: 'Get Started', fields: ['name', 'email', 'phone'], submitText: 'Submit', successMessage: 'Thank you!' }
-    case 'multistep_form': return { steps: [{ title: 'Step 1', fields: ['name'] }, { title: 'Step 2', fields: ['email'] }], submitText: 'Submit' }
     case 'newsletter': return { title: 'Newsletter', description: 'Subscribe to our newsletter', placeholder: 'Enter your email', submitText: 'Subscribe' }
-    case 'survey': return { title: 'Survey', questions: [{ question: 'Question?', type: 'text' }], submitText: 'Submit' }
 
-    // Checkout
+    // Orders
+    case 'order_form': return { fields: ['name', 'email', 'phone'], showCoupon: true, submitText: 'Complete Order', successMessage: 'Order submitted!' }
+    case 'custom_order_form': return { fields: [{ type: 'text', label: 'Name', required: true }], submitText: 'Submit' }
     case 'checkout_button': return { text: 'Checkout', style: 'primary', size: 'lg', fullWidth: false, actions: defaultActions }
     case 'order_summary': return { showDiscount: true, showTax: true, showTotal: true }
     case 'product_selector': return { products: [], selectedProductId: null }
     case 'variant_selector': return { productId: null, selectedVariantId: null }
     case 'coupon_input': return { placeholder: 'Enter coupon code', applyText: 'Apply' }
-    case 'payment_selector': return { methods: ['card', 'paypal'], selectedMethod: 'card' }
     case 'order_bump': return { title: 'Add to your order', description: 'Special offer', price: 9.99, checked: false }
     case 'upsell': return { title: 'Upgrade your purchase', description: 'Get more value', price: 19.99, productId: null }
-    case 'cross_sell': return { title: 'You might also like', products: [] }
 
     // Interactive
     case 'popup_trigger': return { triggerText: 'Open Popup', popupContent: '', triggerType: 'click' }
