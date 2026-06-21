@@ -178,7 +178,7 @@ export default function NewProductPage() {
     }
 
     toast.success('Product saved!')
-    router.push('/admin/products')
+    router.push(`/admin/products/${data.id}/builder`)
   }
 
   return (
