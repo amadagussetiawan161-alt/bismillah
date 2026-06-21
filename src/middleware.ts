@@ -20,13 +20,31 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { session } } = await supabase.auth.getSession()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const protectedPaths = ['/dashboard']
-  const isProtectedPath = protectedPaths.some(path => request.nextUrl.pathname.startsWith(path))
+  const pathname = request.nextUrl.pathname
+  const isDashboard = pathname.startsWith('/dashboard')
+  const isAdmin = pathname.startsWith('/dashboard/admin')
+  const isAuth = pathname.startsWith('/auth/')
 
-  if (isProtectedPath && !session) {
+  if (isDashboard && !session) {
     const redirectUrl = new URL('/auth/login', request.url)
+    redirectUrl.searchParams.set('redirectTo', pathname)
     return NextResponse.redirect(redirectUrl)
+  }
+
+  if (isAdmin && session) {
+    const adminEmails = ['admin@gmail.com']
+    const { data: userRole } = await supabase.from('user_roles').select('role:roles(name)').eq('user_id', user?.id || '').single()
+    const roleName = (userRole?.role as { name?: string } | undefined)?.name || 'customer'
+
+    if (!adminEmails.includes(user?.email?.toLowerCase() || '') && roleName !== 'admin') {
+      return NextResponse.redirect(new URL('/dashboard', request.url))
+    }
+  }
+
+  if (isAuth && session && !pathname.includes('callback') && !pathname.includes('auth-error')) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   return supabaseResponse

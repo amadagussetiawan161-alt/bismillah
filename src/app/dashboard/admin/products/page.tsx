@@ -28,12 +28,12 @@ export default function AdminProductsPage() {
 
   return (
     <div>
-      <div className="mb-8 flex items-center justify-between"><div><h1 className="text-3xl font-bold">Products</h1><p className="text-muted-foreground">Manage product catalog</p></div><Button><Plus className="h-4 w-4 mr-2" />Add Product</Button></div>
+      <div className="mb-8 flex items-center justify-between"><div><h1 className="text-3xl font-bold">Products</h1><p className="text-muted-foreground">Manage product catalog</p></div><Link href="/dashboard/admin/products/new"><Button><Plus className="h-4 w-4 mr-2" />Add Product</Button></Link></div>
       <Card>
         <CardHeader><CardTitle>All Products ({products.length})</CardTitle></CardHeader>
         <CardContent>
-          <table className="w-full"><thead><tr className="border-b"><th className="text-left py-3 px-2">Name</th><th className="text-left py-3 px-2">Category</th><th className="text-left py-3 px-2">Price</th><th className="text-left py-3 px-2">Status</th></tr></thead><tbody>
-            {products.map((product) => (<tr key={product.id} className="border-b"><td className="py-3 px-2"><Link href={`/products/${product.slug}`} className="hover:underline">{product.name}</Link></td><td className="py-3 px-2">{product.category?.name || '-'}</td><td className="py-3 px-2">${product.price}</td><td className="py-3 px-2"><div className="flex gap-2"><Badge variant={product.is_active ? 'default' : 'secondary'}>{product.is_active ? 'Active' : 'Inactive'}</Badge>{product.is_featured && <Badge>Featured</Badge>}</div></td></tr>))}
+          <table className="w-full"><thead><tr className="border-b"><th className="text-left py-3 px-2">Name</th><th className="text-left py-3 px-2">Category</th><th className="text-left py-3 px-2">Price</th><th className="text-left py-3 px-2">Status</th><th className="text-left py-3 px-2">Actions</th></tr></thead><tbody>
+            {products.map((product) => (<tr key={product.id} className="border-b"><td className="py-3 px-2"><Link href={`/products/${product.slug}`} className="hover:underline">{product.name}</Link></td><td className="py-3 px-2">{product.category?.name || '-'}</td><td className="py-3 px-2">${product.price}</td><td className="py-3 px-2"><div className="flex gap-2"><Badge variant={product.is_active ? 'default' : 'secondary'}>{product.is_active ? 'Active' : 'Inactive'}</Badge>{product.is_featured && <Badge>Featured</Badge>}</div></td><td className="py-3 px-2"><Link href={`/dashboard/admin/products/${product.id}/edit`} className="text-sm text-primary hover:underline">Edit</Link></td></tr>))}
           </tbody></table>
         </CardContent>
       </Card>

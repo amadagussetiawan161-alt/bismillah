@@ -14,27 +14,57 @@ import { Loader2 } from 'lucide-react'
 export default function RegisterPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
-  const [formData, setFormData] = useState({ fullName: '', email: '', password: '', confirmPassword: '' })
+  const [formData, setFormData] = useState({ fullName: '', email: '', password: '' })
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (formData.password !== formData.confirmPassword) { toast.error('Passwords do not match'); return }
     if (formData.password.length < 6) { toast.error('Password must be at least 6 characters'); return }
     setLoading(true)
     const supabase = createBrowserClient()
-    const { error } = await supabase.auth.signUp({
+
+    const { data, error } = await supabase.auth.signUp({
       email: formData.email,
       password: formData.password,
       options: { data: { full_name: formData.fullName }, emailRedirectTo: `${window.location.origin}/auth/callback` },
     })
+
     if (error) { toast.error(error.message); setLoading(false); return }
-    const { data: { user } } = await supabase.auth.getUser()
-    if (user) {
-      await supabase.from('profiles').insert({ user_id: user.id, email: formData.email, full_name: formData.fullName })
-      await supabase.from('user_roles').insert({ user_id: user.id, role_id: '00000000-0000-0000-0000-000000000002' })
+
+    if (data.user) {
+      const { data: roleData } = await supabase.from('roles').select('id').eq('name', 'customer').single()
+      const isAdmin = formData.email.toLowerCase() === 'admin@gmail.com'
+      let roleId = roleData?.id
+
+      if (isAdmin) {
+        const { data: adminRole } = await supabase.from('roles').select('id').eq('name', 'admin').single()
+        roleId = adminRole?.id
+      }
+
+      if (!roleId) {
+        const { data: allRoles } = await supabase.from('roles').select('id, name')
+        roleId = allRoles?.find(r => r.name === (isAdmin ? 'admin' : 'customer'))?.id || allRoles?.[0]?.id
+      }
+
+      await supabase.from('profiles').insert({
+        user_id: data.user.id,
+        email: formData.email,
+        full_name: formData.fullName,
+      })
+
+      await supabase.from('user_roles').insert({
+        user_id: data.user.id,
+        role_id: roleId,
+      })
+
+      if (data.session) {
+        toast.success('Account created! Redirecting...')
+        router.push('/dashboard')
+      } else {
+        toast.success('Account created! Please check your email to verify.')
+        router.push('/auth/login')
+      }
     }
-    toast.success('Account created! Please check your email.')
-    router.push('/auth/login')
+    setLoading(false)
   }
 
   return (
@@ -49,8 +79,7 @@ export default function RegisterPage() {
           <CardContent className="space-y-4">
             <div className="space-y-2"><Label htmlFor="fullName">Full Name</Label><Input id="fullName" type="text" placeholder="John Doe" value={formData.fullName} onChange={(e) => setFormData({ ...formData, fullName: e.target.value })} required disabled={loading} /></div>
             <div className="space-y-2"><Label htmlFor="email">Email</Label><Input id="email" type="email" placeholder="name@example.com" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} required disabled={loading} /></div>
-            <div className="space-y-2"><Label htmlFor="password">Password</Label><Input id="password" type="password" placeholder="Create a password" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required disabled={loading} /></div>
-            <div className="space-y-2"><Label htmlFor="confirmPassword">Confirm Password</Label><Input id="confirmPassword" type="password" placeholder="Confirm your password" value={formData.confirmPassword} onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })} required disabled={loading} /></div>
+            <div className="space-y-2"><Label htmlFor="password">Password</Label><Input id="password" type="password" placeholder="Create a password (min 6 characters)" value={formData.password} onChange={(e) => setFormData({ ...formData, password: e.target.value })} required disabled={loading} /></div>
           </CardContent>
           <CardFooter className="flex flex-col gap-4">
             <Button type="submit" className="w-full" disabled={loading}>{loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Create Account</Button>
