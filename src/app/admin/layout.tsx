@@ -7,6 +7,21 @@ import { createBrowserClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Loader2, LayoutDashboard, Users, Package, FolderOpen, ShoppingCart, CreditCard, Key, Users2, BarChart3, Activity, Settings, LogOut, Menu, X, FileText } from 'lucide-react'
 
+// Paths that trigger focus mode
+const FOCUS_MODE_PATHS = [
+  '/admin/products/new',
+]
+
+const FOCUS_MODE_PATTERNS = [
+  /\/admin\/products\/[^/]+\/edit$/,
+  /\/admin\/products\/[^/]+\/builder$/,
+]
+
+function isFocusMode(pathname: string): boolean {
+  return FOCUS_MODE_PATHS.some((p) => pathname === p) ||
+    FOCUS_MODE_PATTERNS.some((pattern) => pattern.test(pathname))
+}
+
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<{ id: string; email: string; role: string } | null>(null)
@@ -14,6 +29,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
   const router = useRouter()
   const supabase = createBrowserClient()
+
+  const focusMode = isFocusMode(pathname)
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -35,6 +52,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const handleLogout = async () => { await supabase.auth.signOut(); router.push('/auth/login') }
 
   if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>
+
+  // Focus mode - hide sidebar, full width
+  if (focusMode) {
+    return (
+      <div className="min-h-screen bg-background">
+        {children}
+      </div>
+    )
+  }
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', href: '/admin' },

@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect, Suspense, useCallback, use } from 'react'
+import React, { useState, useEffect, Suspense, useCallback, use, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
@@ -9,10 +9,14 @@ import {
   ChevronUp, ChevronDown, Type, Image as ImageIcon, Video,
   Star, Clock, HelpCircle, ShoppingCart, Link2, GripVertical,
   FileText, Layout, MoveVertical, Code, Monitor, Smartphone, Tablet,
-  ImagePlus, X, Package, DollarSign, ArrowRight, Sparkles, Check
+  ImagePlus, X, Package, DollarSign, ArrowRight, Sparkles, Check,
+  Shield, Users, Send, Mail, AlertCircle, Bell, Maximize2, PanelLeft,
+  Badge, Tag, CreditCard, Table, Heart, PanelTop
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { ActionConfigEditor, getActionUrl } from '@/components/action-config-editor'
+import { MultiActionEditor } from '@/components/multi-action-editor'
+import { Action, createEmptyAction, executeActions } from '@/lib/action-engine'
+import { BLOCK_CATEGORIES, getDefaultBlockContent } from '@/lib/builder-blocks'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   DndContext,
@@ -61,95 +65,17 @@ interface ProductData {
   sales_count: number | null
 }
 
-/* ==================== BLOCK DEFINITIONS ==================== */
-const BLOCK_CATEGORIES = [
-  {
-    name: 'Basic',
-    blocks: [
-      { type: 'section', label: 'Section', icon: Layout },
-      { type: 'container', label: 'Container', icon: Layout },
-      { type: 'heading', label: 'Heading', icon: Type },
-      { type: 'text', label: 'Text', icon: FileText },
-      { type: 'button', label: 'Button', icon: ArrowRight },
-      { type: 'divider', label: 'Divider', icon: Sparkles },
-      { type: 'spacer', label: 'Spacer', icon: MoveVertical },
-    ],
-  },
-  {
-    name: 'Media',
-    blocks: [
-      { type: 'image', label: 'Image', icon: ImageIcon },
-      { type: 'gallery', label: 'Gallery', icon: ImageIcon },
-      { type: 'video', label: 'Video', icon: Video },
-    ],
-  },
-  {
-    name: 'Marketing',
-    blocks: [
-      { type: 'hero', label: 'Hero', icon: Layout },
-      { type: 'features', label: 'Features', icon: Star },
-      { type: 'pricing', label: 'Pricing', icon: DollarSign },
-      { type: 'testimonials', label: 'Testimonials', icon: Star },
-      { type: 'faq', label: 'FAQ', icon: HelpCircle },
-      { type: 'countdown', label: 'Countdown', icon: Clock },
-      { type: 'cta', label: 'CTA', icon: ShoppingCart },
-    ],
-  },
-  {
-    name: 'Product',
-    blocks: [
-      { type: 'product_image', label: 'Product Image', icon: ImageIcon },
-      { type: 'product_name', label: 'Product Name', icon: Package },
-      { type: 'product_price', label: 'Product Price', icon: DollarSign },
-      { type: 'product_description', label: 'Product Description', icon: FileText },
-      { type: 'buy_button', label: 'Buy Button', icon: ShoppingCart },
-    ],
-  },
-  {
-    name: 'Advanced',
-    blocks: [
-      { type: 'html', label: 'Custom HTML', icon: Code },
-    ],
-  },
-]
-
-/* ==================== DEFAULT CONTENT ==================== */
-function getDefaultContent(type: string): Record<string, any> {
-  // Action config for clickable elements
-  const defaultActionConfig = {
-    actionType: '' as '' | 'direct_url' | 'product_purchase',
-    url: '',
-    openInNewTab: false,
-    productId: null as string | null,
-    variantId: null as string | null,
-  }
-  switch (type) {
-    case 'section': return { padding: '80', bgColor: '#ffffff', maxWidth: '1200' }
-    case 'container': return { padding: '40', bgColor: '#f8fafc', borderRadius: '12', maxWidth: '1200' }
-    case 'heading': return { text: 'Section Heading', level: 'h2', align: 'center', color: '#0f172a', fontSize: '32', fontWeight: '700' }
-    case 'text': return { text: 'Enter your content here...', align: 'left', color: '#475569', fontSize: '16', lineHeight: '1.6' }
-    case 'button': return { text: 'Click Me', style: 'primary', size: 'md', align: 'center', rounded: 'md', ...defaultActionConfig }
-    case 'image': return { src: '', alt: '', width: '100%', height: 'auto', borderRadius: '12', align: 'center', caption: '', ...defaultActionConfig }
-    case 'gallery': return { images: [], columns: '3', gap: '16', borderRadius: '12' }
-    case 'video': return { url: '', caption: '', width: '100%', borderRadius: '12' }
-    case 'hero': return { title: 'Your Product Name', subtitle: 'The best solution for your needs', buttonText: 'Get Started', bgImage: '', bgColor: '#0f172a', align: 'center', height: '500', overlayOpacity: '60' }
-    case 'features': return { items: [{ title: 'Feature 1', description: 'Description text', icon: '' }, { title: 'Feature 2', description: 'Description text', icon: '' }, { title: 'Feature 3', description: 'Description text', icon: '' }], columns: '3', align: 'center' }
-    case 'pricing': return { title: 'Simple Pricing', price: '$99', period: 'one-time', features: ['Feature 1', 'Feature 2', 'Feature 3'], buttonText: 'Buy Now', highlighted: false, align: 'center' }
-    case 'testimonials': return { items: [{ name: 'John Doe', role: 'Customer', text: 'Great product!', avatar: '', rating: '5' }], columns: '2', align: 'center' }
-    case 'faq': return { items: [{ question: 'Question?', answer: 'Answer.' }], align: 'left' }
-    case 'countdown': return { targetDate: '', label: 'Offer ends in:', style: 'modern', align: 'center' }
-    case 'cta': return { title: 'Ready to get started?', text: 'Join thousands of satisfied customers.', buttonText: 'Buy Now', align: 'center', bgColor: '#f1f5f9', ...defaultActionConfig }
-    case 'divider': return { style: 'solid', color: '#e2e8f0', height: '1', width: '100' }
-    case 'spacer': return { height: 40 }
-    case 'product_image': return { width: '100%', borderRadius: '12', align: 'center', maxWidth: '600' }
-    case 'product_name': return { level: 'h1', align: 'center', color: '#0f172a', fontSize: '48', fontWeight: '800' }
-    case 'product_price': return { align: 'center', showCompare: true, color: '#0f172a', compareColor: '#94a3b8', fontSize: '36', fontWeight: '700' }
-    case 'product_description': return { align: 'center', color: '#475569', fontSize: '18', maxLines: '0' }
-    case 'buy_button': return { text: 'Buy Now', style: 'primary', size: 'lg', align: 'center', rounded: 'md', fullWidth: false, ...defaultActionConfig }
-    case 'html': return { code: '<div style="padding: 20px; background: #f1f5f9; border-radius: 8px;">Custom HTML</div>' }
-    default: return {}
-  }
+/* ==================== ICON MAPPING ==================== */
+const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  Layout, Type, FileText, ArrowRight, Sparkles, MoveVertical, ImageIcon, Video, Star, DollarSign,
+  HelpCircle, Clock, ShoppingCart, Package, Code, Check, Shield, Users, Send, Mail, AlertCircle,
+  Bell, Maximize2, PanelLeft, Badge, Tag, CreditCard, Table, Heart, PanelTop
 }
+
+function getIconComponent(iconName: string): React.ComponentType<{ className?: string }> {
+  return ICON_MAP[iconName] || Layout
+}
+
 
 /* ==================== TEMPLATES ==================== */
 const TEMPLATES: { name: string; blocks: BuilderBlock[] }[] = [
@@ -286,28 +212,78 @@ function BlockPreview({ block }: { block: BuilderBlock }) {
 /* ==================== LIVE PREVIEW RENDERER ==================== */
 function LivePreviewRenderer({ blocks, product, device }: { blocks: BuilderBlock[]; product: ProductData; device: string }) {
   const isAvailable = product.status === 'active'
-  const getActionUrl = (content: Record<string, any>, product: ProductData) => {
-    // If action type is set, use action config
-    if (content.actionType === 'direct_url') {
-      return content.url || '#'
+
+  const getBlockActionUrl = (content: Record<string, any>): string => {
+    // New multi-action system
+    if (content.actions && Array.isArray(content.actions) && content.actions.length > 0) {
+      const navAction = content.actions.find((a: Action) =>
+        a.enabled && !['facebook_pixel', 'google_analytics', 'google_ads', 'tiktok_pixel', 'custom_tracking', 'page_view'].includes(a.type)
+      )
+      if (navAction) {
+        switch (navAction.type) {
+          case 'direct_url': return navAction.config.url || '#'
+          case 'product_purchase': {
+            const { productId, variantId } = navAction.config
+            if (productId) {
+              let url = `/checkout?product=${product.slug}`
+              if (variantId) url += `&variant=${variantId}`
+              return url
+            }
+            break
+          }
+          case 'whatsapp_chat': case 'whatsapp_inquiry': {
+            const { phone, message } = navAction.config
+            if (phone) {
+              let url = `https://wa.me/${phone.replace(/[^0-9]/g, '')}`
+              if (message) url += `?text=${encodeURIComponent(message)}`
+              return url
+            }
+            break
+          }
+          case 'phone_call': {
+            const { phone } = navAction.config
+            if (phone) return `tel:${phone}`
+            break
+          }
+          case 'email': {
+            const { email, subject, body } = navAction.config
+            if (email) {
+              let mailto = `mailto:${email}`
+              const params = []
+              if (subject) params.push(`subject=${encodeURIComponent(subject)}`)
+              if (body) params.push(`body=${encodeURIComponent(body)}`)
+              if (params.length) mailto += `?${params.join('&')}`
+              return mailto
+            }
+            break
+          }
+          case 'telegram': {
+            const { username } = navAction.config
+            if (username) return `https://t.me/${username.replace('@', '')}`
+            break
+          }
+        }
+      }
     }
+    // Legacy single-action system (backward compatibility)
+    if (content.actionType === 'direct_url') return content.url || '#'
     if (content.actionType === 'product_purchase') {
       if (content.productId) {
         let checkoutUrl = `/checkout?product=${product.slug}`
-        if (content.variantId) {
-          checkoutUrl += `&variant=${content.variantId}`
-        }
+        if (content.variantId) checkoutUrl += `&variant=${content.variantId}`
         return checkoutUrl
       }
     }
-    // Fallback to default product URL
-    switch (product.cta_type) {
-      case 'whatsapp': return product.whatsapp_number ? `https://wa.me/${product.whatsapp_number}` : '#'
-      case 'external_link': return product.external_url || '#'
-      case 'order_form': return '#'
-      default: return `/checkout?product=${product.slug}`
+    // Default product checkout
+    return `/checkout?product=${product.slug}`
+  }
+
+  const handleBlockClick = (content: Record<string, any>) => {
+    if (content.actions && Array.isArray(content.actions) && content.actions.length > 0) {
+      executeActions(content.actions as Action[])
     }
   }
+
   const getCtaUrl = () => {
     switch (product.cta_type) {
       case 'whatsapp': return product.whatsapp_number ? `https://wa.me/${product.whatsapp_number}` : '#'
@@ -377,26 +353,31 @@ function LivePreviewRenderer({ blocks, product, device }: { blocks: BuilderBlock
                   const btnStyle = content.style === 'secondary' ? 'bg-secondary text-secondary-foreground' : content.style === 'outline' ? 'bg-transparent border-2 border-primary text-primary' : 'bg-primary text-primary-foreground'
                   const btnSize = content.size === 'sm' ? 'px-4 py-2 text-sm' : content.size === 'lg' ? 'px-8 py-4 text-lg' : 'px-6 py-3 text-base'
                   const btnRounded = content.rounded === 'none' ? 'rounded-none' : content.rounded === 'full' ? 'rounded-full' : 'rounded-lg'
-                  const btnUrl = content.actionType ? getActionUrl(content, product) : (content.url || getCtaUrl())
-                  const btnTarget = content.openInNewTab ? '_blank' : undefined
+                  const btnUrl = content.actions?.length ? getBlockActionUrl(content) : (content.url || getCtaUrl())
+                  const hasActions = content.actions?.length > 0
                   return (
                     <div className={`py-4 px-4 ${alignClass}`}>
-                      <a href={btnUrl} target={btnTarget} className={`inline-block font-semibold ${btnStyle} ${btnSize} ${btnRounded} hover:opacity-90 transition-opacity`}>
-                        {content.text}
-                      </a>
+                      {hasActions ? (
+                        <button onClick={() => handleBlockClick(content)} className={`inline-block font-semibold ${btnStyle} ${btnSize} ${btnRounded} hover:opacity-90 transition-opacity`}>
+                          {content.text}
+                        </button>
+                      ) : (
+                        <a href={btnUrl} className={`inline-block font-semibold ${btnStyle} ${btnSize} ${btnRounded} hover:opacity-90 transition-opacity`}>
+                          {content.text}
+                        </a>
+                      )}
                     </div>
                   )
                 }
                 case 'image': {
-                  const imgUrl = content.actionType ? getActionUrl(content, product) : null
-                  const imgTarget = content.openInNewTab ? '_blank' : undefined
+                  const hasActions = content.actions?.length > 0
                   return (
                     <div className={`py-4 px-4 ${alignClass}`}>
                       {content.src ? (
-                        imgUrl ? (
-                          <a href={imgUrl} target={imgTarget}>
-                            <img src={content.src} alt={content.alt} className="mx-auto cursor-pointer hover:opacity-90 transition-opacity" style={{ width: content.width, height: content.height, borderRadius: content.borderRadius ? `${content.borderRadius}px` : undefined }} />
-                          </a>
+                        hasActions ? (
+                          <button onClick={() => handleBlockClick(content)} className="block mx-auto cursor-pointer hover:opacity-90 transition-opacity">
+                            <img src={content.src} alt={content.alt} className="mx-auto" style={{ width: content.width, height: content.height, borderRadius: content.borderRadius ? `${content.borderRadius}px` : undefined }} />
+                          </button>
                         ) : (
                           <img src={content.src} alt={content.alt} className="mx-auto" style={{ width: content.width, height: content.height, borderRadius: content.borderRadius ? `${content.borderRadius}px` : undefined }} />
                         )
@@ -489,13 +470,22 @@ function LivePreviewRenderer({ blocks, product, device }: { blocks: BuilderBlock
                   </div>
                 )
                 case 'cta': {
-                  const ctaUrl = content.actionType ? getActionUrl(content, product) : getCtaUrl()
-                  const ctaTarget = content.openInNewTab ? '_blank' : undefined
+                  const hasActions = content.actions?.length > 0
                   return (
                     <div className={`py-12 px-4 ${alignClass}`} style={{ background: content.bgColor || '#f1f5f9' }}>
                       <h3 className="text-xl font-bold mb-2">{content.title}</h3>
                       <p className="mb-4">{content.text}</p>
-                      {isAvailable && <a href={ctaUrl} target={ctaTarget} className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90">{content.buttonText || getCtaLabel()}</a>}
+                      {isAvailable && (
+                        hasActions ? (
+                          <button onClick={() => handleBlockClick(content)} className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90">
+                            {content.buttonText || getCtaLabel()}
+                          </button>
+                        ) : (
+                          <a href={getCtaUrl()} className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90">
+                            {content.buttonText || getCtaLabel()}
+                          </a>
+                        )
+                      )}
                       {!isAvailable && <button disabled className="px-6 py-3 bg-muted text-muted-foreground rounded-lg font-semibold cursor-not-allowed">{product.status === 'sold_out' ? 'Sold Out' : 'Coming Soon'}</button>}
                     </div>
                   )
@@ -536,14 +526,19 @@ function LivePreviewRenderer({ blocks, product, device }: { blocks: BuilderBlock
                   const btnSize = content.size === 'sm' ? 'px-4 py-2 text-sm' : content.size === 'lg' ? 'px-8 py-4 text-lg' : 'px-6 py-3 text-base'
                   const btnRounded = content.rounded === 'none' ? 'rounded-none' : content.rounded === 'full' ? 'rounded-full' : 'rounded-lg'
                   const btnWidth = content.fullWidth ? 'w-full' : 'inline-block'
-                  const buyUrl = content.actionType ? getActionUrl(content, product) : getCtaUrl()
-                  const buyTarget = content.openInNewTab ? '_blank' : undefined
+                  const hasActions = content.actions?.length > 0
                   return (
                     <div className={`py-4 px-4 ${alignClass}`}>
                       {isAvailable ? (
-                        <a href={buyUrl} target={buyTarget} className={`${btnWidth} font-semibold ${btnStyle} ${btnSize} ${btnRounded} hover:opacity-90 transition-opacity`}>
-                          {content.text || getCtaLabel()}
-                        </a>
+                        hasActions ? (
+                          <button onClick={() => handleBlockClick(content)} className={`${btnWidth} font-semibold ${btnStyle} ${btnSize} ${btnRounded} hover:opacity-90 transition-opacity`}>
+                            {content.text || getCtaLabel()}
+                          </button>
+                        ) : (
+                          <a href={getCtaUrl()} className={`${btnWidth} font-semibold ${btnStyle} ${btnSize} ${btnRounded} hover:opacity-90 transition-opacity`}>
+                            {content.text || getCtaLabel()}
+                          </a>
+                        )
                       ) : (
                         <button disabled className={`${btnWidth} font-semibold bg-muted text-muted-foreground ${btnSize} ${btnRounded} cursor-not-allowed`}>
                           {product.status === 'sold_out' ? 'Sold Out' : 'Coming Soon'}
@@ -706,18 +701,9 @@ function BlockSettings({ block, onChange, onImageSelect }: { block: BuilderBlock
         {renderField('align', 'Alignment', 'select', 'left,center,right')}
         {renderField('rounded', 'Rounded', 'select', 'none,md,lg,full')}
         <div className="border-t pt-3 mt-3">
-          <h4 className="text-xs font-semibold mb-2">Action Configuration</h4>
-          <ActionConfigEditor
-            actionType={content.actionType || ''}
-            url={content.url || ''}
-            openInNewTab={content.openInNewTab || false}
-            productId={content.productId || null}
-            variantId={content.variantId || null}
-            onActionTypeChange={(type) => update('actionType', type)}
-            onUrlChange={(url) => update('url', url)}
-            onOpenInNewTabChange={(open) => update('openInNewTab', open)}
-            onProductIdChange={(id) => update('productId', id)}
-            onVariantIdChange={(id) => update('variantId', id)}
+          <MultiActionEditor
+            actions={content.actions || []}
+            onChange={(actions) => update('actions', actions)}
           />
         </div>
       </div>
@@ -733,18 +719,9 @@ function BlockSettings({ block, onChange, onImageSelect }: { block: BuilderBlock
         {renderField('align', 'Alignment', 'select', 'left,center,right')}
         {renderField('caption', 'Caption')}
         <div className="border-t pt-3 mt-3">
-          <h4 className="text-xs font-semibold mb-2">Click Action</h4>
-          <ActionConfigEditor
-            actionType={content.actionType || ''}
-            url={content.url || ''}
-            openInNewTab={content.openInNewTab || false}
-            productId={content.productId || null}
-            variantId={content.variantId || null}
-            onActionTypeChange={(type) => update('actionType', type)}
-            onUrlChange={(url) => update('url', url)}
-            onOpenInNewTabChange={(open) => update('openInNewTab', open)}
-            onProductIdChange={(id) => update('productId', id)}
-            onVariantIdChange={(id) => update('variantId', id)}
+          <MultiActionEditor
+            actions={content.actions || []}
+            onChange={(actions) => update('actions', actions)}
           />
         </div>
       </div>
@@ -880,18 +857,9 @@ function BlockSettings({ block, onChange, onImageSelect }: { block: BuilderBlock
         {renderField('align', 'Alignment', 'select', 'left,center,right')}
         {renderField('bgColor', 'Background Color', 'color')}
         <div className="border-t pt-3 mt-3">
-          <h4 className="text-xs font-semibold mb-2">Button Action</h4>
-          <ActionConfigEditor
-            actionType={content.actionType || ''}
-            url={content.url || ''}
-            openInNewTab={content.openInNewTab || false}
-            productId={content.productId || null}
-            variantId={content.variantId || null}
-            onActionTypeChange={(type) => update('actionType', type)}
-            onUrlChange={(url) => update('url', url)}
-            onOpenInNewTabChange={(open) => update('openInNewTab', open)}
-            onProductIdChange={(id) => update('productId', id)}
-            onVariantIdChange={(id) => update('variantId', id)}
+          <MultiActionEditor
+            actions={content.actions || []}
+            onChange={(actions) => update('actions', actions)}
           />
         </div>
       </div>
@@ -957,19 +925,11 @@ function BlockSettings({ block, onChange, onImageSelect }: { block: BuilderBlock
         {renderField('rounded', 'Rounded', 'select', 'none,md,lg,full')}
         {renderField('fullWidth', 'Full Width', 'select', 'true,false')}
         <div className="border-t pt-3 mt-3">
-          <h4 className="text-xs font-semibold mb-2">Override Action (Optional)</h4>
+          <h4 className="text-xs font-semibold mb-2">Override Actions (Optional)</h4>
           <p className="text-xs text-muted-foreground mb-2">Leave empty to use default product checkout</p>
-          <ActionConfigEditor
-            actionType={content.actionType || ''}
-            url={content.url || ''}
-            openInNewTab={content.openInNewTab || false}
-            productId={content.productId || null}
-            variantId={content.variantId || null}
-            onActionTypeChange={(type) => update('actionType', type)}
-            onUrlChange={(url) => update('url', url)}
-            onOpenInNewTabChange={(open) => update('openInNewTab', open)}
-            onProductIdChange={(id) => update('productId', id)}
-            onVariantIdChange={(id) => update('variantId', id)}
+          <MultiActionEditor
+            actions={content.actions || []}
+            onChange={(actions) => update('actions', actions)}
           />
         </div>
       </div>
@@ -1001,7 +961,20 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
   const [mediaImages, setMediaImages] = useState<string[]>([])
   const [onImageSelect, setOnImageSelect] = useState<((url: string) => void) | null>(null)
   const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const [blockSearch, setBlockSearch] = useState('')
   const supabase = createBrowserClient()
+
+  const filteredCategories = useMemo(() => {
+    if (!blockSearch.trim()) return BLOCK_CATEGORIES
+    const search = blockSearch.toLowerCase()
+    return BLOCK_CATEGORIES.map(cat => ({
+      ...cat,
+      blocks: cat.blocks.filter(b =>
+        b.label.toLowerCase().includes(search) ||
+        b.type.toLowerCase().includes(search)
+      )
+    })).filter(cat => cat.blocks.length > 0)
+  }, [blockSearch])
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -1057,7 +1030,7 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
   }
 
   const addBlock = (type: string) => {
-    const newBlock: BuilderBlock = { id: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15), type, content: getDefaultContent(type) }
+    const newBlock: BuilderBlock = { id: Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15), type, content: getDefaultBlockContent(type) }
     setBlocks(prev => [...prev, newBlock])
     setSelectedBlockId(newBlock.id)
   }
@@ -1178,19 +1151,36 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
         <div className="flex-1 flex overflow-hidden">
           {/* Left Sidebar - Elements */}
           <div className="w-56 border-r bg-muted/30 overflow-y-auto p-3">
-            {BLOCK_CATEGORIES.map((cat) => (
+            <div className="mb-3">
+              <input
+                type="text"
+                placeholder="Search blocks..."
+                value={blockSearch}
+                onChange={(e) => setBlockSearch(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+              />
+            </div>
+            {filteredCategories.map((cat) => (
               <div key={cat.name} className="mb-4">
                 <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2">{cat.name}</h3>
                 <div className="grid grid-cols-2 gap-2">
-                  {cat.blocks.map((bt) => (
-                    <button key={bt.type} onClick={() => addBlock(bt.type)} className="flex flex-col items-center gap-1 p-2 rounded-md bg-background border hover:border-primary transition-colors text-xs">
-                      <bt.icon className="h-4 w-4" />
-                      <span>{bt.label}</span>
-                    </button>
-                  ))}
+                  {cat.blocks.map((bt) => {
+                    const IconComp = getIconComponent(bt.icon)
+                    return (
+                      <button key={bt.type} onClick={() => addBlock(bt.type)} className="flex flex-col items-center gap-1 p-2 rounded-md bg-background border hover:border-primary transition-colors text-xs">
+                        <IconComp className="h-4 w-4" />
+                        <span className="truncate w-full text-center">{bt.label}</span>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
             ))}
+            {filteredCategories.length === 0 && (
+              <div className="text-xs text-muted-foreground text-center py-4">
+                No blocks found
+              </div>
+            )}
           </div>
 
           {/* Center - Canvas */}
