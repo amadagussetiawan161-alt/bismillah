@@ -14,6 +14,16 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
   const { data: product } = await supabase.from('products').select('*, category:categories(*)').eq('slug', slug).single()
   if (!product) notFound()
 
+  const isAvailable = product.status === 'active'
+
+  const getStatusBadge = () => {
+    switch (product.status) {
+      case 'sold_out': return <Badge variant="destructive" className="text-base px-3 py-1">SOLD OUT</Badge>
+      case 'coming_soon': return <Badge variant="secondary" className="text-base px-3 py-1">COMING SOON</Badge>
+      default: return null
+    }
+  }
+
   return (
     <div className="py-20">
       <div className="container mx-auto px-4">
@@ -22,6 +32,11 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
             <div className="aspect-video relative bg-muted rounded-lg overflow-hidden">
               {product.image_url && <img src={product.image_url} alt={product.name} className="object-cover w-full h-full" />}
               {product.is_featured && <Badge className="absolute top-4 left-4">Featured</Badge>}
+              {!isAvailable && (
+                <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                  {getStatusBadge()}
+                </div>
+              )}
             </div>
           </div>
           <div>
@@ -44,7 +59,13 @@ export default async function ProductPage({ params }: { params: Promise<{ slug: 
               <div className="flex items-center gap-3"><Zap className="h-5 w-5 text-primary" /><span className="text-sm">Lifetime updates included</span></div>
               <div className="flex items-center gap-3"><Headphones className="h-5 w-5 text-primary" /><span className="text-sm">Premium support available</span></div>
             </div>
-            <AddToCartButton productId={product.id} price={product.price} name={product.name} />
+            {isAvailable ? (
+              <AddToCartButton productId={product.id} price={product.price} name={product.name} />
+            ) : (
+              <button disabled className="inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium h-10 px-8 bg-muted text-muted-foreground cursor-not-allowed">
+                {product.status === 'sold_out' ? 'Sold Out' : 'Coming Soon'}
+              </button>
+            )}
             <Separator className="my-6" />
             <div className="prose prose-sm text-muted-foreground">
               <h3>Description</h3>

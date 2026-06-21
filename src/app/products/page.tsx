@@ -19,6 +19,7 @@ interface Product {
   compare_price: number | null
   image_url: string | null
   is_featured: boolean
+  status: string
   rating_average: number
   rating_count: number
 }
@@ -40,7 +41,7 @@ function ProductsList() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true)
-      let query = supabase.from('products').select('*', { count: 'exact' }).eq('is_active', true)
+      let query = supabase.from('products').select('*', { count: 'exact' }).in('status', ['active', 'sold_out', 'coming_soon'])
 
       if (search) query = query.ilike('name', `%${search}%`)
       if (category) {
@@ -80,6 +81,14 @@ function ProductsList() {
     router.push(`/products?${params.toString()}`)
   }
 
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'sold_out': return <Badge variant="destructive" className="absolute top-2 left-2">SOLD OUT</Badge>
+      case 'coming_soon': return <Badge variant="secondary" className="absolute top-2 left-2">COMING SOON</Badge>
+      default: return null
+    }
+  }
+
   return (
     <div className="py-12">
       <div className="container mx-auto px-4">
@@ -117,6 +126,7 @@ function ProductsList() {
                       <div className="aspect-[4/3] relative bg-muted rounded-t-lg overflow-hidden">
                         {product.image_url && <img src={product.image_url} alt={product.name} className="object-cover w-full h-full group-hover:scale-105 transition-transform duration-300" />}
                         {product.is_featured && <Badge className="absolute top-2 right-2">Featured</Badge>}
+                        {getStatusBadge(product.status)}
                       </div>
                       <div className="p-4">
                         <h3 className="font-semibold mb-1 group-hover:text-primary transition-colors">{product.name}</h3>

@@ -13,7 +13,7 @@ import { Loader2 } from 'lucide-react'
 export default function NewProductPage() {
   const [loading, setLoading] = useState(false)
   const [form, setForm] = useState({
-    name: '', slug: '', description: '', short_description: '', price: '', compare_price: '', category_id: '', image_url: '', is_active: true, is_featured: false,
+    name: '', slug: '', description: '', short_description: '', price: '', compare_price: '', category_id: '', image_url: '', status: 'active' as 'active' | 'sold_out' | 'coming_soon', is_featured: false,
   })
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const router = useRouter()
@@ -31,20 +31,10 @@ export default function NewProductPage() {
     setLoading(true)
 
     const slug = form.slug || generateSlug(form.name)
-    const price = parseFloat(form.price)
-    const comparePrice = form.compare_price ? parseFloat(form.compare_price) : null
-
     const { error } = await supabase.from('products').insert({
-      name: form.name,
-      slug,
-      description: form.description,
-      short_description: form.short_description,
-      price,
-      compare_price: comparePrice,
-      category_id: form.category_id || null,
-      image_url: form.image_url || null,
-      is_active: form.is_active,
-      is_featured: form.is_featured,
+      name: form.name, slug, description: form.description || null, short_description: form.short_description || null, price: parseFloat(form.price),
+      compare_price: form.compare_price ? parseFloat(form.compare_price) : null,
+      category_id: form.category_id || null, image_url: form.image_url || null, status: form.status, is_featured: form.is_featured,
     })
 
     if (error) { toast.error(error.message); setLoading(false); return }
@@ -75,8 +65,15 @@ export default function NewProductPage() {
               </select>
             </div>
             <div className="space-y-2"><Label>Image URL</Label><Input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="https://..." /></div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <select className="w-full px-3 py-2 border rounded-md bg-background" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as 'active' | 'sold_out' | 'coming_soon' })}>
+                <option value="active">Active</option>
+                <option value="sold_out">Sold Out</option>
+                <option value="coming_soon">Coming Soon</option>
+              </select>
+            </div>
             <div className="flex gap-4">
-              <label className="flex items-center gap-2"><input type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} className="h-4 w-4" /><span className="text-sm">Active</span></label>
               <label className="flex items-center gap-2"><input type="checkbox" checked={form.is_featured} onChange={(e) => setForm({ ...form, is_featured: e.target.checked })} className="h-4 w-4" /><span className="text-sm">Featured</span></label>
             </div>
             <div className="flex gap-4 pt-4">

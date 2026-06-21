@@ -17,7 +17,7 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [form, setForm] = useState({
-    name: '', slug: '', description: '', short_description: '', price: '', compare_price: '', category_id: '', image_url: '', is_active: true, is_featured: false,
+    name: '', slug: '', description: '', short_description: '', price: '', compare_price: '', category_id: '', image_url: '', status: 'active' as 'active' | 'sold_out' | 'coming_soon', is_featured: false,
   })
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const supabase = createBrowserClient()
@@ -34,7 +34,7 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
         compare_price: product.compare_price?.toString() || '',
         category_id: product.category_id || '',
         image_url: product.image_url || '',
-        is_active: product.is_active ?? true,
+        status: product.status || 'active',
         is_featured: product.is_featured ?? false,
       })
       const { data: cats } = await supabase.from('categories').select('id, name').eq('is_active', true)
@@ -56,7 +56,7 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
       compare_price: form.compare_price ? parseFloat(form.compare_price) : null,
       category_id: form.category_id || null,
       image_url: form.image_url || null,
-      is_active: form.is_active,
+      status: form.status,
       is_featured: form.is_featured,
       updated_at: new Date().toISOString(),
     }).eq('id', id)
@@ -99,8 +99,15 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
             </div>
             <div className="space-y-2"><Label>Image URL</Label><Input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} /></div>
             {form.image_url && <img src={form.image_url} alt="Preview" className="w-32 h-32 object-cover rounded-lg border" />}
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <select className="w-full px-3 py-2 border rounded-md bg-background" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as 'active' | 'sold_out' | 'coming_soon' })}>
+                <option value="active">Active</option>
+                <option value="sold_out">Sold Out</option>
+                <option value="coming_soon">Coming Soon</option>
+              </select>
+            </div>
             <div className="flex gap-4">
-              <label className="flex items-center gap-2"><input type="checkbox" checked={form.is_active} onChange={(e) => setForm({ ...form, is_active: e.target.checked })} className="h-4 w-4" /><span className="text-sm">Active</span></label>
               <label className="flex items-center gap-2"><input type="checkbox" checked={form.is_featured} onChange={(e) => setForm({ ...form, is_featured: e.target.checked })} className="h-4 w-4" /><span className="text-sm">Featured</span></label>
             </div>
             <div className="flex gap-4 pt-4">
