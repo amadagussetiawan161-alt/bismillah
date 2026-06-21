@@ -18,6 +18,16 @@ interface Order {
   user: { email: string } | null
   order_items: { id: string; product: { name: string } }[]
 }
+interface OrderRow {
+  id: string
+  order_number: string
+  total_amount: number
+  status: string
+  payment_method: string
+  created_at: string
+  user: { email: string }[]
+  order_items: { id: string; product: { name: string }[] }[]
+}
 
 export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true)
@@ -33,7 +43,12 @@ export default function AdminOrdersPage() {
     let query = supabase.from('orders').select('id, order_number, total_amount, status, payment_method, created_at, user:profiles(email), order_items(id, product:products(name))').order('created_at', { ascending: false })
     if (filter !== 'all') query = query.eq('status', filter)
     const { data } = await query
-    setOrders((data as Order[]) || [])
+    const formatted: Order[] = (data as OrderRow[])?.map(row => ({
+      id: row.id, order_number: row.order_number, total_amount: row.total_amount, status: row.status, payment_method: row.payment_method, created_at: row.created_at,
+      user: row.user?.[0] || null,
+      order_items: (row.order_items || []).map(item => ({ id: item.id, product: item.product?.[0] || { name: '-' } }))
+    })) || []
+    setOrders(formatted)
     setLoading(false)
   }
 

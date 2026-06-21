@@ -7,16 +7,23 @@ import { createBrowserClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
+interface Order { id: string; order_number: string; total_amount: number; status: string; created_at: string; user: { email: string } | null }
+interface OrderRow { id: string; order_number: string; total_amount: number; status: string; created_at: string; user: { email: string }[] }
+
 export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true)
-  const [orders, setOrders] = useState<{ id: string; order_number: string; total_amount: number; status: string; created_at: string; user: { email: string } | null }[]>([])
+  const [orders, setOrders] = useState<Order[]>([])
   const supabase = createBrowserClient()
 
   useEffect(() => { fetchOrders() }, [])
 
   const fetchOrders = async () => {
     const { data } = await supabase.from('orders').select('id, order_number, total_amount, status, created_at, user:profiles(email)').order('created_at', { ascending: false })
-    setOrders(data || [])
+    const formatted: Order[] = (data as OrderRow[])?.map(row => ({
+      id: row.id, order_number: row.order_number, total_amount: row.total_amount, status: row.status, created_at: row.created_at,
+      user: row.user?.[0] || null
+    })) || []
+    setOrders(formatted)
     setLoading(false)
   }
 

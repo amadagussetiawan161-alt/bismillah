@@ -7,6 +7,7 @@ import { createBrowserClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 
 interface User { id: string; email: string; full_name: string | null; role: { name: string } | null; created_at: string }
+interface UserRow { id: string; email: string; full_name: string | null; created_at: string; user_roles: { role: { name: string }[] }[] }
 
 export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true)
@@ -16,7 +17,10 @@ export default function AdminUsersPage() {
   useEffect(() => {
     const fetchData = async () => {
       const { data } = await supabase.from('profiles').select('id, email, full_name, created_at, user_roles(role:roles(name))').order('created_at', { ascending: false })
-      const formatted = data?.map((u: { id: string; email: string; full_name: string | null; created_at: string; user_roles: { role: { name: string } | null }[] }) => ({ ...u, role: u.user_roles?.[0]?.role || null })) as User[] || []
+      const formatted: User[] = (data as UserRow[])?.map(u => ({
+        id: u.id, email: u.email, full_name: u.full_name, created_at: u.created_at,
+        role: u.user_roles?.[0]?.role?.[0] || null
+      })) || []
       setUsers(formatted)
       setLoading(false)
     }

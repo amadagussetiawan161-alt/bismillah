@@ -7,6 +7,7 @@ import { createBrowserClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 
 interface License { id: string; license_key: string; status: string; expires_at: string | null; user: { email: string } | null; product: { name: string } | null }
+interface LicenseRow { id: string; license_key: string; status: string; expires_at: string | null; user: { email: string }[]; product: { name: string }[] }
 
 export default function AdminLicensesPage() {
   const [loading, setLoading] = useState(true)
@@ -15,8 +16,12 @@ export default function AdminLicensesPage() {
 
   useEffect(() => {
     const fetchData = async () => {
-      const { data } = await supabase.from('licenses').select('id, license_key, status, expires_at, user:profiles(email), product:products(name)').order('created_at', { ascending: false })
-      setLicenses((data as License[]) || [])
+      const { data } = await supabase.from('user_licenses').select('id, license_key, status, expires_at, user:profiles(email), product:products(name)').order('created_at', { ascending: false })
+      const formatted: License[] = (data as LicenseRow[])?.map(row => ({
+        id: row.id, license_key: row.license_key, status: row.status, expires_at: row.expires_at,
+        user: row.user?.[0] || null, product: row.product?.[0] || null
+      })) || []
+      setLicenses(formatted)
       setLoading(false)
     }
     fetchData()

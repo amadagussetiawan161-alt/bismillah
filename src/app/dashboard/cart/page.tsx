@@ -18,6 +18,12 @@ interface CartItem {
   price: number
   product: { id: string; name: string; slug: string; image_url: string | null; price: number }
 }
+interface CartItemRow {
+  id: string
+  quantity: number
+  price: number
+  product: { id: string; name: string; slug: string; image_url: string | null; price: number }[]
+}
 
 export default function CartPage() {
   const [loading, setLoading] = useState(true)
@@ -31,7 +37,10 @@ export default function CartPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) { router.push('/auth/login?redirectTo=/dashboard/cart'); return }
       const { data } = await supabase.from('cart_items').select('id, quantity, price, product:products(id, name, slug, image_url, price)').eq('user_id', user.id)
-      setCartItems((data as CartItem[]) || [])
+      const formatted: CartItem[] = (data as CartItemRow[])?.map(row => ({
+        id: row.id, quantity: row.quantity, price: row.price, product: row.product?.[0] || { id: '', name: '', slug: '', image_url: null, price: 0 }
+      })) || []
+      setCartItems(formatted)
       setLoading(false)
     }
     fetchCart()

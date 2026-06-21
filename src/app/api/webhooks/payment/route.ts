@@ -7,7 +7,7 @@ export async function POST(request: NextRequest) {
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { cookies: { getAll() { return cookieStore.getAll() }, setAll(cookiesToSet) { try { cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options)) } catch {} } } }
+    { cookies: { getAll() { return cookieStore.getAll() }, setAll(cookiesToSet: { name: string; value: string; options?: any }[]) { try { cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options)) } catch {} } } }
   )
 
   const body = await request.json()
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       await supabase.from('user_products').insert({
         user_id: order.user_id,
         product_id: item.product_id,
-      }).catch(() => {}) // ignore duplicates
+      }).then(() => {}) // ignore duplicates
 
       // Generate license if enabled
       const { data: product } = await supabase.from('products').select('license_enabled, license_type, license_duration, custom_license_days, name').eq('id', item.product_id).single()
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
           license_key: licenseKey,
           status: 'active',
           expires_at: expiresAt,
-        }).catch(() => {})
+        }).then(() => {}) // ignore duplicates
 
         // Send license email
         await sendEmail(supabase, 'license_delivery', order.user_id, {
@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
           referral_code: order.referral_code,
           status: 'converted',
           commission_amount: commission,
-        }).catch(() => {})
+        }).then(() => {}) // ignore duplicates
       }
     }
 

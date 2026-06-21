@@ -7,6 +7,7 @@ import { createBrowserClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 
 interface Referral { id: string; status: string; commission: number; created_at: string; referrer: { email: string } | null; referee: { email: string } | null }
+interface ReferralRow { id: string; status: string; commission: number; created_at: string; referrer: { email: string }[]; referee: { email: string }[] }
 
 export default function AdminAffiliatesPage() {
   const [loading, setLoading] = useState(true)
@@ -16,7 +17,11 @@ export default function AdminAffiliatesPage() {
   useEffect(() => {
     const fetchData = async () => {
       const { data } = await supabase.from('referrals').select('id, status, commission, created_at, referrer:profiles!referrals_referrer_id_fkey(email), referee:profiles!referrals_referee_id_fkey(email)').order('created_at', { ascending: false })
-      setReferrals((data as Referral[]) || [])
+      const formatted: Referral[] = (data as ReferralRow[])?.map(row => ({
+        id: row.id, status: row.status, commission: row.commission, created_at: row.created_at,
+        referrer: row.referrer?.[0] || null, referee: row.referee?.[0] || null
+      })) || []
+      setReferrals(formatted)
       setLoading(false)
     }
     fetchData()

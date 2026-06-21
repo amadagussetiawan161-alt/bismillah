@@ -7,6 +7,7 @@ import { createBrowserClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 
 interface Subscription { id: string; status: string; current_period_start: string; current_period_end: string; user: { email: string } | null; product: { name: string } | null }
+interface SubscriptionRow { id: string; status: string; current_period_start: string; current_period_end: string; user: { email: string }[]; product: { name: string }[] }
 
 export default function AdminSubscriptionsPage() {
   const [loading, setLoading] = useState(true)
@@ -16,7 +17,11 @@ export default function AdminSubscriptionsPage() {
   useEffect(() => {
     const fetchData = async () => {
       const { data } = await supabase.from('subscriptions').select('id, status, current_period_start, current_period_end, user:profiles(email), product:products(name)').order('created_at', { ascending: false })
-      setSubscriptions((data as Subscription[]) || [])
+      const formatted: Subscription[] = (data as SubscriptionRow[])?.map(row => ({
+        id: row.id, status: row.status, current_period_start: row.current_period_start, current_period_end: row.current_period_end,
+        user: row.user?.[0] || null, product: row.product?.[0] || null
+      })) || []
+      setSubscriptions(formatted)
       setLoading(false)
     }
     fetchData()

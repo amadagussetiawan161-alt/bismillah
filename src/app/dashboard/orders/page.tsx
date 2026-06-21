@@ -17,6 +17,15 @@ interface Order {
   created_at: string
   order_items: { id: string; product: { name: string } }[]
 }
+interface OrderRow {
+  id: string
+  order_number: string
+  total_amount: number
+  status: string
+  payment_method: string
+  created_at: string
+  order_items: { id: string; product: { name: string }[] }[]
+}
 
 export default function OrdersPage() {
   const [loading, setLoading] = useState(true)
@@ -28,7 +37,11 @@ export default function OrdersPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { data } = await supabase.from('orders').select('id, order_number, total_amount, status, payment_method, created_at, order_items(id, product:products(name))').eq('user_id', user.id).order('created_at', { ascending: false })
-      setOrders((data as Order[]) || [])
+      const formatted: Order[] = (data as OrderRow[])?.map(row => ({
+        id: row.id, order_number: row.order_number, total_amount: row.total_amount, status: row.status, payment_method: row.payment_method, created_at: row.created_at,
+        order_items: (row.order_items || []).map(item => ({ id: item.id, product: item.product?.[0] || { name: '-' } }))
+      })) || []
+      setOrders(formatted)
       setLoading(false)
     }
     fetchOrders()

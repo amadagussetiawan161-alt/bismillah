@@ -7,6 +7,7 @@ import { createBrowserClient } from '@/lib/supabase/client'
 import { Package, Loader2 } from 'lucide-react'
 
 interface UserProduct { id: string; product: { id: string; name: string; slug: string; image_url: string | null }; created_at: string }
+interface UserProductRow { id: string; product: { id: string; name: string; slug: string; image_url: string | null }[]; created_at: string }
 
 export default function UserProductsPage() {
   const [loading, setLoading] = useState(true)
@@ -18,7 +19,10 @@ export default function UserProductsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { data } = await supabase.from('user_products').select('id, created_at, product:products(id, name, slug, image_url)').eq('user_id', user.id).order('created_at', { ascending: false })
-      setProducts((data as UserProduct[]) || [])
+      const formatted: UserProduct[] = (data as UserProductRow[])?.map(row => ({
+        id: row.id, created_at: row.created_at, product: row.product?.[0] || { id: '', name: '', slug: '', image_url: null }
+      })) || []
+      setProducts(formatted)
       setLoading(false)
     }
     fetchProducts()

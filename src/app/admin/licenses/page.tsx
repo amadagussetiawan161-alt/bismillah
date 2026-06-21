@@ -6,15 +6,22 @@ import { Badge } from '@/components/ui/badge'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 
+interface License { id: string; license_key: string; status: string; activations_count: number; user: { email: string } | null; product: { name: string } | null }
+interface LicenseRow { id: string; license_key: string; status: string; activations_count: number; user: { email: string }[]; product: { name: string }[] }
+
 export default function AdminLicensesPage() {
   const [loading, setLoading] = useState(true)
-  const [licenses, setLicenses] = useState<{ id: string; license_key: string; status: string; activations_count: number; user: { email: string } | null; product: { name: string } | null }[]>([])
+  const [licenses, setLicenses] = useState<License[]>([])
   const supabase = createBrowserClient()
 
   useEffect(() => {
     const fetchLicenses = async () => {
       const { data } = await supabase.from('licenses').select('id, license_key, status, activations_count, user:profiles(email), product:products(name)').order('created_at', { ascending: false })
-      setLicenses(data || [])
+      const formatted: License[] = (data as LicenseRow[])?.map(row => ({
+        id: row.id, license_key: row.license_key, status: row.status, activations_count: row.activations_count,
+        user: row.user?.[0] || null, product: row.product?.[0] || null
+      })) || []
+      setLicenses(formatted)
       setLoading(false)
     }
     fetchLicenses()

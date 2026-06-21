@@ -16,6 +16,15 @@ interface Transaction {
   transaction_id: string | null
   product: { name: string } | null
 }
+interface TransactionRow {
+  id: string
+  amount: number
+  payment_method: string | null
+  status: string
+  created_at: string
+  transaction_id: string | null
+  product: { name: string }[]
+}
 
 export default function TransactionsPage() {
   const [loading, setLoading] = useState(true)
@@ -27,7 +36,11 @@ export default function TransactionsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { data } = await supabase.from('transactions').select('id, amount, payment_method, status, created_at, transaction_id, product:products(name)').eq('user_id', user.id).order('created_at', { ascending: false })
-      setTransactions((data as Transaction[]) || [])
+      const formatted: Transaction[] = (data as TransactionRow[])?.map(row => ({
+        id: row.id, amount: row.amount, payment_method: row.payment_method, status: row.status, created_at: row.created_at, transaction_id: row.transaction_id,
+        product: row.product?.[0] || null
+      })) || []
+      setTransactions(formatted)
       setLoading(false)
     }
     fetchData()

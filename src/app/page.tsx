@@ -18,8 +18,12 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
 
   // Fetch categories with product counts
   const { data: categories } = await supabase.from('categories').select('id, name, slug, image_url, description').eq('is_active', true).order('name')
-  const { data: categoryCounts } = await supabase.from('products').select('category_id, count').eq('status', 'active').group('category_id')
-  const countMap = new Map((categoryCounts || []).map((c: any) => [c.category_id, parseInt(c.count)]))
+  const { data: allProducts } = await supabase.from('products').select('category_id').eq('status', 'active')
+  const countMap = new Map<string, number>()
+  ;(allProducts || []).forEach((p: any) => {
+    const cid = p.category_id
+    countMap.set(cid, (countMap.get(cid) || 0) + 1)
+  })
 
   // Fetch products with filters
   let productQuery = supabase.from('products').select('*', { count: 'exact' }).in('status', ['active', 'sold_out', 'coming_soon']).order('created_at', { ascending: false })
@@ -153,6 +157,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
                       <div className="absolute bottom-0 left-0 right-0 p-3">
                         <h3 className="font-semibold text-white text-sm">{cat.name}</h3>
                         <p className="text-xs text-white/70">{countMap.get(cat.id) || 0} products</p>
+
                       </div>
                     </div>
                   </CardContent>

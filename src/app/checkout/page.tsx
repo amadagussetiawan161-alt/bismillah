@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { Loader2, CreditCard, Tag } from 'lucide-react'
 
 interface CartItem { id: string; quantity: number; price: number; product: { id: string; name: string; slug: string } }
+interface CartItemRow { id: string; quantity: number; price: number; product: { id: string; name: string; slug: string }[] }
 
 interface PaymentProvider {
   id: string
@@ -54,7 +55,10 @@ function CheckoutContent() {
         }
       } else {
         const { data } = await supabase.from('cart_items').select('id, quantity, price, product:products(id, name, slug)').eq('user_id', user.id)
-        setCartItems((data as CartItem[]) || [])
+        const formatted: CartItem[] = (data as CartItemRow[])?.map(row => ({
+          id: row.id, quantity: row.quantity, price: row.price, product: row.product?.[0] || { id: '', name: '', slug: '' }
+        })) || []
+        setCartItems(formatted)
       }
       setLoading(false)
     }

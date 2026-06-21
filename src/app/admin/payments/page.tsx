@@ -6,15 +6,22 @@ import { Badge } from '@/components/ui/badge'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 
+interface Payment { id: string; amount: number; status: string; payment_method: string; created_at: string; user: { email: string } | null }
+interface PaymentRow { id: string; amount: number; status: string; payment_method: string; created_at: string; user: { email: string }[] }
+
 export default function AdminPaymentsPage() {
   const [loading, setLoading] = useState(true)
-  const [payments, setPayments] = useState<{ id: string; amount: number; status: string; payment_method: string; created_at: string; user: { email: string } | null }[]>([])
+  const [payments, setPayments] = useState<Payment[]>([])
   const supabase = createBrowserClient()
 
   useEffect(() => {
     const fetchPayments = async () => {
       const { data } = await supabase.from('payments').select('id, amount, status, payment_method, created_at, user:profiles(email)').order('created_at', { ascending: false })
-      setPayments(data || [])
+      const formatted: Payment[] = (data as PaymentRow[])?.map(row => ({
+        id: row.id, amount: row.amount, status: row.status, payment_method: row.payment_method, created_at: row.created_at,
+        user: row.user?.[0] || null
+      })) || []
+      setPayments(formatted)
       setLoading(false)
     }
     fetchPayments()

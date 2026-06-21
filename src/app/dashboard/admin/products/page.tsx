@@ -9,6 +9,7 @@ import { createBrowserClient } from '@/lib/supabase/client'
 import { Loader2, Plus } from 'lucide-react'
 
 interface Product { id: string; name: string; slug: string; price: number; status: string; is_featured: boolean; category: { name: string } | null }
+interface ProductRow { id: string; name: string; slug: string; price: number; status: string; is_featured: boolean; category: { name: string }[] }
 
 export default function AdminProductsPage() {
   const [loading, setLoading] = useState(true)
@@ -18,7 +19,11 @@ export default function AdminProductsPage() {
   useEffect(() => {
     const fetchData = async () => {
       const { data } = await supabase.from('products').select('id, name, slug, price, status, is_featured, category:categories(name)').order('created_at', { ascending: false })
-      setProducts((data as Product[]) || [])
+      const formatted: Product[] = (data as ProductRow[])?.map(row => ({
+        id: row.id, name: row.name, slug: row.slug, price: row.price, status: row.status, is_featured: row.is_featured,
+        category: row.category?.[0] || null
+      })) || []
+      setProducts(formatted)
       setLoading(false)
     }
     fetchData()

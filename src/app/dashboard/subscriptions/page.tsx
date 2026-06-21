@@ -8,6 +8,7 @@ import { createBrowserClient } from '@/lib/supabase/client'
 import { CreditCard, Loader2 } from 'lucide-react'
 
 interface Subscription { id: string; status: string; current_period_start: string; current_period_end: string; product: { name: string } }
+interface SubscriptionRow { id: string; status: string; current_period_start: string; current_period_end: string; product: { name: string }[] }
 
 export default function SubscriptionsPage() {
   const [loading, setLoading] = useState(true)
@@ -19,7 +20,11 @@ export default function SubscriptionsPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
       const { data } = await supabase.from('subscriptions').select('id, status, current_period_start, current_period_end, product:products(name)').eq('user_id', user.id).order('created_at', { ascending: false })
-      setSubscriptions((data as Subscription[]) || [])
+      const formatted: Subscription[] = (data as SubscriptionRow[])?.map(row => ({
+        id: row.id, status: row.status, current_period_start: row.current_period_start, current_period_end: row.current_period_end,
+        product: row.product?.[0] || { name: '-' }
+      })) || []
+      setSubscriptions(formatted)
       setLoading(false)
     }
     fetchData()

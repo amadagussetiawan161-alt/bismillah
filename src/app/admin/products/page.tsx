@@ -20,7 +20,19 @@ interface Product {
   commission_type: string | null
   commission_value: number | null
   image_url: string | null
-  category: { name: string }[] | null
+  category: { name: string } | null
+}
+interface ProductRow {
+  id: string
+  name: string
+  slug: string
+  price: number
+  status: string
+  affiliate_enabled: boolean
+  commission_type: string | null
+  commission_value: number | null
+  image_url: string | null
+  category: { name: string }[]
 }
 
 export default function AdminProductsPage() {
@@ -44,7 +56,10 @@ export default function AdminProductsPage() {
     if (error) {
       toast.error('Failed to load products')
     } else {
-      setProducts((data as Product[]) || [])
+      const formatted: Product[] = (data as ProductRow[])?.map(row => ({
+        ...row, category: row.category?.[0] || null
+      })) || []
+      setProducts(formatted)
     }
     setLoading(false)
   }

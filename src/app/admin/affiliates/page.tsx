@@ -6,15 +6,22 @@ import { Badge } from '@/components/ui/badge'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 
+interface Affiliate { id: string; referral_code: string; total_earnings: number; total_referrals: number; status: string; user: { email: string } | null }
+interface AffiliateRow { id: string; referral_code: string; total_earnings: number; total_referrals: number; status: string; user: { email: string }[] }
+
 export default function AdminAffiliatesPage() {
   const [loading, setLoading] = useState(true)
-  const [affiliates, setAffiliates] = useState<{ id: string; referral_code: string; total_earnings: number; total_referrals: number; status: string; user: { email: string }[] | null }[]>([])
+  const [affiliates, setAffiliates] = useState<Affiliate[]>([])
   const supabase = createBrowserClient()
 
   useEffect(() => {
     const fetchAffiliates = async () => {
       const { data } = await supabase.from('affiliates').select('id, referral_code, total_earnings, total_referrals, status, user:profiles(email)').order('created_at', { ascending: false })
-      setAffiliates(data || [])
+      const formatted: Affiliate[] = (data as AffiliateRow[])?.map(row => ({
+        id: row.id, referral_code: row.referral_code, total_earnings: row.total_earnings, total_referrals: row.total_referrals, status: row.status,
+        user: row.user?.[0] || null
+      })) || []
+      setAffiliates(formatted)
       setLoading(false)
     }
     fetchAffiliates()

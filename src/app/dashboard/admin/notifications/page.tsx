@@ -9,6 +9,7 @@ import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface Notification { id: string; title: string; message: string; type: string; read: boolean; created_at: string; user: { email: string } | null }
+interface NotificationRow { id: string; title: string; message: string; type: string; read: boolean; created_at: string; user: { email: string }[] }
 
 export default function AdminNotificationsPage() {
   const [loading, setLoading] = useState(true)
@@ -18,7 +19,11 @@ export default function AdminNotificationsPage() {
   useEffect(() => {
     const fetchData = async () => {
       const { data } = await supabase.from('notifications').select('id, title, message, type, read, created_at, user:profiles(email)').order('created_at', { ascending: false }).limit(100)
-      setNotifications((data as Notification[]) || [])
+      const formatted: Notification[] = (data as NotificationRow[])?.map(row => ({
+        id: row.id, title: row.title, message: row.message, type: row.type, read: row.read, created_at: row.created_at,
+        user: row.user?.[0] || null
+      })) || []
+      setNotifications(formatted)
       setLoading(false)
     }
     fetchData()

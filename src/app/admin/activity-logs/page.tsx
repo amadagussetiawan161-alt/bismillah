@@ -5,15 +5,22 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { Loader2 } from 'lucide-react'
 
+interface Log { id: string; action: string; entity_type: string; details: any; created_at: string; user: { email: string } | null }
+interface LogRow { id: string; action: string; entity_type: string; details: any; created_at: string; user: { email: string }[] }
+
 export default function AdminActivityLogsPage() {
   const [loading, setLoading] = useState(true)
-  const [logs, setLogs] = useState<{ id: string; action: string; entity_type: string; details: any; created_at: string; user: { email: string }[] | null }[]>([])
+  const [logs, setLogs] = useState<Log[]>([])
   const supabase = createBrowserClient()
 
   useEffect(() => {
     const fetchLogs = async () => {
       const { data } = await supabase.from('activity_logs').select('id, action, entity_type, details, created_at, user:profiles(email)').order('created_at', { ascending: false }).limit(100)
-      setLogs(data || [])
+      const formatted: Log[] = (data as LogRow[])?.map(row => ({
+        id: row.id, action: row.action, entity_type: row.entity_type, details: row.details, created_at: row.created_at,
+        user: row.user?.[0] || null
+      })) || []
+      setLogs(formatted)
       setLoading(false)
     }
     fetchLogs()
