@@ -3,53 +3,72 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { createBrowserSupabaseClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Loader as Loader2, LayoutDashboard, Users, Package, FolderOpen, ShoppingCart, CreditCard, Key, Users as Users2, Settings, LogOut, Menu, X, FileText, Search, Bell, ChevronDown, Calendar, ChartBar as BarChart3, Sparkles } from 'lucide-react'
+import { Loader as Loader2, LayoutDashboard, Users, LogOut, Menu, X, Search, Bell, Sparkles } from 'lucide-react'
 
 const menuItems = [
   { icon: LayoutDashboard, label: 'Overview', href: '/admin' },
   { icon: Users, label: 'User Management', href: '/admin/users' },
-  { icon: Package, label: 'Products', href: '/admin/products' },
-  { icon: FolderOpen, label: 'Categories', href: '/admin/categories' },
-  { icon: ShoppingCart, label: 'Orders', href: '/admin/orders' },
-  { icon: CreditCard, label: 'Payments', href: '/admin/payments' },
-  { icon: Key, label: 'Licenses', href: '/admin/licenses' },
-  { icon: Users2, label: 'Affiliates', href: '/admin/affiliates' },
-  { icon: FileText, label: 'Blog', href: '/admin/blog' },
-  { icon: BarChart3, label: 'Reports', href: '/admin/reports' },
-  { icon: Settings, label: 'Settings', href: '/admin/settings' },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false)
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<{ id: string; email: string; role: string } | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
-  const supabase = createBrowserSupabaseClient()
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) { router.push('/auth/login'); return }
-
-      const { data: profile } = await supabase.from('profiles').select('role').eq('user_id', user.id).single()
-      const role = profile?.role || 'member'
-      if (role !== 'admin') { router.push('/dashboard'); return }
-
-      setUser({ id: user.id, email: user.email || '', role })
-      setLoading(false)
-    }
-    checkAuth()
+    setMounted(true)
   }, [])
 
+  useEffect(() => {
+    if (!mounted) return
+
+    const checkAuth = async () => {
+      try {
+        const { createBrowserSupabaseClient } = await import('@/lib/supabase/client')
+        const supabase = createBrowserSupabaseClient()
+        const { data: { user } } = await supabase.auth.getUser()
+
+        if (!user) {
+          router.push('/auth/login')
+          return
+        }
+
+        const { data: profile } = await supabase.from('profiles').select('role').eq('user_id', user.id).single()
+        const role = profile?.role || 'member'
+
+        if (role !== 'admin') {
+          router.push('/dashboard')
+          return
+        }
+
+        setUser({ id: user.id, email: user.email || '', role })
+        setLoading(false)
+      } catch (error) {
+        console.error('Auth check failed:', error)
+        router.push('/auth/login')
+      }
+    }
+
+    checkAuth()
+  }, [mounted, router])
+
   const handleLogout = async () => {
-    await supabase.auth.signOut()
-    router.push('/auth/login')
+    try {
+      const { createBrowserSupabaseClient } = await import('@/lib/supabase/client')
+      const supabase = createBrowserSupabaseClient()
+      await supabase.auth.signOut()
+      router.push('/auth/login')
+    } catch (error) {
+      console.error('Logout failed:', error)
+    }
   }
 
-  if (loading) {
+  // Don't render anything until mounted on client
+  if (!mounted || loading) {
     return (
       <div className="min-h-screen bg-slate-50 flex items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
@@ -58,6 +77,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   const isActive = (href: string) => pathname === href || (href !== '/admin' && pathname.startsWith(href))
+
   const getGreeting = () => {
     const hour = new Date().getHours()
     if (hour < 12) return 'Selamat pagi'
@@ -172,17 +192,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             {/* Right Actions */}
             <div className="flex items-center gap-2 ml-auto">
-              {/* Date Range */}
-              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 text-sm text-slate-600">
-                <Calendar className="h-4 w-4" />
-                <span>30 hari terakhir</span>
-                <ChevronDown className="h-4 w-4" />
-              </div>
-
               {/* Notifications */}
               <button className="relative p-2 hover:bg-slate-100 rounded-lg transition-colors">
                 <Bell className="h-5 w-5 text-slate-600" />
-                <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-blue-600 rounded-full" />
               </button>
             </div>
           </div>

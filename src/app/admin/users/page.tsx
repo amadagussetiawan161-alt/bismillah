@@ -21,7 +21,6 @@ interface UserProfile {
   role: string
   created_at: string
   updated_at: string
-  last_login?: string
 }
 
 interface UserLicense {
@@ -51,77 +50,78 @@ export default function UserManagementPage() {
   const [showDetail, setShowDetail] = useState(false)
 
   const perPage = 10
-  const supabase = createBrowserSupabaseClient()
 
   useEffect(() => {
     fetchUsers()
   }, [currentPage, roleFilter, statusFilter, searchQuery])
 
   const fetchUsers = async () => {
+    const supabase = createBrowserSupabaseClient()
     setLoading(true)
-    let query = supabase.from('profiles').select('id, user_id, email, full_name, avatar_url, role, created_at, updated_at', { count: 'exact' })
 
-    // Apply filters
-    if (roleFilter !== 'all') {
-      query = query.eq('role', roleFilter)
-    }
+    try {
+      let query = supabase.from('profiles').select('id, user_id, email, full_name, avatar_url, role, created_at, updated_at', { count: 'exact' })
 
-    if (searchQuery) {
-      query = query.or(`email.ilike.%${searchQuery}%,full_name.ilike.%${searchQuery}%`)
-    }
-
-    // Pagination
-    const from = (currentPage - 1) * perPage
-    const to = from + perPage - 1
-    const { data, count, error } = await query.order('created_at', { ascending: false }).range(from, to)
-
-    if (error) {
-      toast.error('Gagal memuat data pengguna')
-      setLoading(false)
-      return
-    }
-
-    // Fetch licenses for each user
-    const userIds = (data || []).map(u => u.user_id)
-    const { data: licenses } = await supabase
-      .from('licenses')
-      .select('id, user_id, product_id, status, expires_at, products(name)')
-      .in('user_id', userIds)
-
-    // Merge user with license info
-    const usersWithLicenses: UserWithLicense[] = (data || []).map(user => {
-      const userLicense = (licenses || []).find(l => l.user_id === user.user_id)
-      return {
-        ...user,
-        license: userLicense as UserLicense | undefined,
+      if (roleFilter !== 'all') {
+        query = query.eq('role', roleFilter)
       }
-    })
 
-    // Apply status filter (need to do this after fetching licenses)
-    let filteredUsers = usersWithLicenses
-    if (statusFilter !== 'all') {
-      filteredUsers = usersWithLicenses.filter(u => {
-        if (statusFilter === 'active') {
-          return u.license?.status === 'active' || !u.license
+      if (searchQuery) {
+        query = query.or(`email.ilike.%${searchQuery}%,full_name.ilike.%${searchQuery}%`)
+      }
+
+      const from = (currentPage - 1) * perPage
+      const to = from + perPage - 1
+      const { data, count, error } = await query.order('created_at', { ascending: false }).range(from, to)
+
+      if (error) throw error
+
+      // Fetch licenses for each user
+      const userIds = (data || []).map(u => u.user_id)
+      const { data: licenses } = await supabase
+        .from('licenses')
+        .select('id, user_id, product_id, status, expires_at, products(name)')
+        .in('user_id', userIds)
+
+      // Merge user with license info
+      const usersWithLicenses: UserWithLicense[] = (data || []).map(user => {
+        const userLicense = (licenses || []).find(l => l.user_id === user.user_id)
+        return {
+          ...user,
+          license: userLicense as UserLicense | undefined,
         }
-        if (statusFilter === 'expired') {
-          return u.license?.status === 'expired' || (u.license?.expires_at && new Date(u.license.expires_at) < new Date())
-        }
-        if (statusFilter === 'no_license') {
-          return !u.license
-        }
-        return true
       })
-    }
 
-    setUsers(filteredUsers)
-    setTotalUsers(count || 0)
-    setLoading(false)
+      let filteredUsers = usersWithLicenses
+      if (statusFilter !== 'all') {
+        filteredUsers = usersWithLicenses.filter(u => {
+          if (statusFilter === 'active') {
+            return u.license?.status === 'active' || !u.license
+          }
+          if (statusFilter === 'expired') {
+            return u.license?.status === 'expired' || (u.license?.expires_at && new Date(u.license.expires_at) < new Date())
+          }
+          if (statusFilter === 'no_license') {
+            return !u.license
+          }
+          return true
+        })
+      }
+
+      setUsers(filteredUsers)
+      setTotalUsers(count || 0)
+    } catch (error) {
+      console.error('Error fetching users:', error)
+      toast.error('Gagal memuat data pengguna')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const totalPages = Math.ceil(totalUsers / perPage)
 
   const handleAction = async (action: string, user: UserWithLicense) => {
+    const supabase = createBrowserSupabaseClient()
     setActionLoading(user.id)
     setActionMenuOpen(null)
 
@@ -193,12 +193,13 @@ export default function UserManagementPage() {
 
       case 'delete':
         if (confirm(`Apakah Anda yakin ingin menghapus ${user.email}?`)) {
-          const deleteResult = await supabase.auth.admin.deleteUser(user.user_id)
-          if (deleteResult.error) {
-            toast.error('Gagal menghapus pengguna')
-          } else {
+          try {
+            // Delete from profiles first
+            await supabase.from('profiles').delete().eq('id', user.id)
             toast.success('Pengguna berhasil dihapus')
             fetchUsers()
+          } catch (error) {
+            toast.error('Gagal menghapus pengguna')
           }
         }
         break
@@ -239,7 +240,6 @@ export default function UserManagementPage() {
       <Card>
         <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-4">
-            {/* Search */}
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
               <Input
@@ -253,7 +253,6 @@ export default function UserManagementPage() {
               />
             </div>
 
-            {/* Role Filter */}
             <div className="w-full sm:w-40">
               <Select
                 value={roleFilter}
@@ -268,7 +267,6 @@ export default function UserManagementPage() {
               </Select>
             </div>
 
-            {/* Status Filter */}
             <div className="w-full sm:w-48">
               <Select
                 value={statusFilter}
@@ -320,7 +318,6 @@ export default function UserManagementPage() {
                 ) : (
                   users.map((user) => (
                     <tr key={user.id} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                      {/* User */}
                       <td className="py-4 px-6">
                         <div className="flex items-center gap-3">
                           <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center shrink-0">
@@ -339,38 +336,32 @@ export default function UserManagementPage() {
                         </div>
                       </td>
 
-                      {/* Full Name */}
                       <td className="py-4 px-6">
                         <span className="text-sm text-slate-900">{user.full_name || '-'}</span>
                       </td>
 
-                      {/* Role */}
                       <td className="py-4 px-6">
                         <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
                           {user.role === 'admin' ? 'Admin' : 'Member'}
                         </Badge>
                       </td>
 
-                      {/* License Status */}
                       <td className="py-4 px-6">
                         {getLicenseStatusBadge(user)}
                       </td>
 
-                      {/* Expiry */}
                       <td className="py-4 px-6">
                         <span className="text-sm text-slate-600">
                           {user.license?.expires_at ? formatDate(user.license.expires_at) : '-'}
                         </span>
                       </td>
 
-                      {/* Created */}
                       <td className="py-4 px-6">
                         <span className="text-sm text-slate-600">
                           {formatDate(user.created_at)}
                         </span>
                       </td>
 
-                      {/* Actions */}
                       <td className="py-4 px-6">
                         <div className="relative">
                           <button
@@ -431,16 +422,6 @@ export default function UserManagementPage() {
                                         <UserCheck className="h-4 w-4" /> Aktivasi Lisensi
                                       </button>
                                     )}
-                                    <button
-                                      onClick={() => {
-                                        setSelectedUser(user)
-                                        setShowDetail(true)
-                                        setActionMenuOpen(null)
-                                      }}
-                                      className="w-full px-4 py-2 text-left text-sm hover:bg-slate-50 flex items-center gap-2"
-                                    >
-                                      <Key className="h-4 w-4" /> Kelola Lisensi
-                                    </button>
                                   </>
                                 )}
                                 <div className="border-t border-slate-100 my-1" />
@@ -581,39 +562,14 @@ export default function UserManagementPage() {
                         </p>
                       </div>
                     </div>
-
-                    {/* License Actions */}
-                    <div className="grid grid-cols-2 gap-3 pt-2">
-                      {selectedUser.license.status === 'suspended' ? (
-                        <Button
-                          onClick={() => {
-                            handleAction('activate', selectedUser)
-                            setShowDetail(false)
-                          }}
-                          className="bg-emerald-600 hover:bg-emerald-700"
-                        >
-                          <UserCheck className="h-4 w-4 mr-2" /> Reaktivasi
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="outline"
-                          onClick={() => {
-                            handleAction('suspend', selectedUser)
-                            setShowDetail(false)
-                          }}
-                          className="border-amber-200 text-amber-700 hover:bg-amber-50"
-                        >
-                          <UserX className="h-4 w-4 mr-2" /> Tangguhkan
-                        </Button>
-                      )}
-                      <Button variant="outline" asChild>
-                        <Link href={`/admin/licenses?user=${selectedUser.user_id}`}>
-                          <Key className="h-4 w-4 mr-2" /> Kelola Lisensi
-                        </Link>
-                      </Button>
-                    </div>
                   </>
                 )}
+              </div>
+
+              <div className="flex gap-3 mt-6">
+                <Button variant="outline" className="flex-1" onClick={() => setShowDetail(false)}>
+                  Tutup
+                </Button>
               </div>
             </div>
           </div>

@@ -7,7 +7,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { createBrowserSupabaseClient } from '@/lib/supabase/client'
 import { formatRelativeTime, formatDate } from '@/lib/utils'
-import { Users, UserCheck, UserPlus, Key, Clock, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Activity, ArrowRight, TrendingUp, Mail, Shield } from 'lucide-react'
+import { Users, UserCheck, Shield, Key, CircleAlert as AlertCircle, UserPlus, Activity, Mail } from 'lucide-react'
 
 interface UserProfile {
   id: string
@@ -15,15 +15,6 @@ interface UserProfile {
   role: string
   created_at: string
   updated_at: string
-}
-
-interface Activity {
-  id: string
-  type: 'user' | 'license' | 'order' | 'system'
-  title: string
-  description: string
-  time: string
-  status: 'success' | 'warning' | 'error' | 'info'
 }
 
 interface Stats {
@@ -48,92 +39,93 @@ export default function AdminOverviewPage() {
     newUsersWeek: 0,
   })
   const [recentUsers, setRecentUsers] = useState<UserProfile[]>([])
-  const [recentActivities, setRecentActivities] = useState<Activity[]>([])
-  const supabase = createBrowserSupabaseClient()
+  const [recentActivities, setRecentActivities] = useState<any[]>([])
 
   useEffect(() => {
     fetchStats()
   }, [])
 
   const fetchStats = async () => {
+    const supabase = createBrowserSupabaseClient()
     setLoading(true)
-    const now = new Date()
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
-    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    const [profiles, licenses] = await Promise.all([
-      supabase.from('profiles').select('id, email, role, created_at, updated_at'),
-      supabase.from('licenses').select('id, status, expires_at'),
-    ])
+    try {
+      const now = new Date()
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
 
-    // Calculate stats
-    const totalUsers = profiles.data?.length || 0
-    const adminUsers = profiles.data?.filter((p: any) => p.role === 'admin').length || 0
-    const newUsersToday = profiles.data?.filter((p: any) => new Date(p.created_at) >= todayStart).length || 0
-    const newUsersWeek = profiles.data?.filter((p: any) => new Date(p.created_at) >= weekStart).length || 0
-    const activeUsers = profiles.data?.length || 0 // All users with profile are "active"
+      const [profilesResult, licensesResult] = await Promise.all([
+        supabase.from('profiles').select('id, email, role, created_at, updated_at'),
+        supabase.from('licenses').select('id, status, expires_at'),
+      ])
 
-    const nowTime = new Date()
-    const activeLicenses = licenses.data?.filter((l: any) =>
-      l.status === 'active' && (!l.expires_at || new Date(l.expires_at) > nowTime)
-    ).length || 0
-    const expiredLicenses = licenses.data?.filter((l: any) =>
-      l.status === 'expired' || (l.expires_at && new Date(l.expires_at) <= nowTime)
-    ).length || 0
+      const profiles = profilesResult.data || []
+      const licenses = licensesResult.data || []
 
-    setStats({
-      totalUsers,
-      activeUsers,
-      adminUsers,
-      activeLicenses,
-      expiredLicenses,
-      newUsersToday,
-      newUsersWeek,
-    })
+      // Calculate stats
+      const totalUsers = profiles.length
+      const adminUsers = profiles.filter((p: any) => p.role === 'admin').length
+      const newUsersToday = profiles.filter((p: any) => new Date(p.created_at) >= todayStart).length
+      const newUsersWeek = profiles.filter((p: any) => new Date(p.created_at) >= weekStart).length
+      const activeUsers = profiles.length
 
-    // Get recent users
-    const recent = (profiles.data || [])
-      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-      .slice(0, 5)
-    setRecentUsers(recent)
+      const nowTime = new Date()
+      const activeLicenses = licenses.filter((l: any) =>
+        l.status === 'active' && (!l.expires_at || new Date(l.expires_at) > nowTime)
+      ).length
+      const expiredLicenses = licenses.filter((l: any) =>
+        l.status === 'expired' || (l.expires_at && new Date(l.expires_at) <= nowTime)
+      ).length
 
-    // Build recent activities
-    const activities: Activity[] = []
-
-    // Add recent user registrations
-    recent.slice(0, 3).forEach((user: any) => {
-      activities.push({
-        id: user.id,
-        type: 'user',
-        title: 'Pengguna baru terdaftar',
-        description: user.email,
-        time: user.created_at,
-        status: 'success',
+      setStats({
+        totalUsers,
+        activeUsers,
+        adminUsers,
+        activeLicenses,
+        expiredLicenses,
+        newUsersToday,
+        newUsersWeek,
       })
-    })
 
-    // Add recent license activities
-    if (licenses.data) {
-      const recentLicenses = licenses.data
-        .filter((l: any) => l.status === 'active')
-        .slice(0, 2)
-      recentLicenses.forEach((l: any) => {
+      // Get recent users
+      const recent = profiles
+        .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 5)
+      setRecentUsers(recent as UserProfile[])
+
+      // Build recent activities
+      const activities: any[] = []
+      recent.slice(0, 3).forEach((user: any) => {
         activities.push({
-          id: l.id,
-          type: 'license',
-          title: 'Lisensi diaktivasi',
-          description: l.status === 'active' ? 'Aktif' : 'Kedaluwarsa',
-          time: new Date().toISOString(),
-          status: l.status === 'active' ? 'success' : 'warning',
+          id: user.id,
+          type: 'user',
+          title: 'Pengguna baru terdaftar',
+          description: user.email,
+          time: user.created_at,
+          status: 'success',
         })
       })
+
+      licenses.slice(0, 2).forEach((l: any) => {
+        if (l.status === 'active') {
+          activities.push({
+            id: l.id,
+            type: 'license',
+            title: 'Lisensi diaktivasi',
+            description: l.status,
+            time: new Date().toISOString(),
+            status: 'success',
+          })
+        }
+      })
+
+      activities.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
+      setRecentActivities(activities.slice(0, 6))
+    } catch (error) {
+      console.error('Error fetching stats:', error)
+    } finally {
+      setLoading(false)
     }
-
-    // Sort by time
-    activities.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())
-    setRecentActivities(activities.slice(0, 6))
-
-    setLoading(false)
   }
 
   const getGreeting = () => {
@@ -170,14 +162,14 @@ export default function AdminOverviewPage() {
       value: stats.activeLicenses,
       icon: Key,
       color: 'bg-amber-50 text-amber-600',
-      href: '/admin/licenses'
+      href: '/admin/users'
     },
     {
       title: 'Lisensi Kedaluwarsa',
       value: stats.expiredLicenses,
       icon: AlertCircle,
       color: 'bg-red-50 text-red-600',
-      href: '/admin/licenses?status=expired'
+      href: '/admin/users?filter=expired'
     },
     {
       title: 'Pengguna Baru (Hari Ini)',
@@ -228,7 +220,9 @@ export default function AdminOverviewPage() {
             </Link>
           </CardHeader>
           <CardContent>
-            {recentUsers.length === 0 ? (
+            {loading ? (
+              <div className="py-8 text-center text-slate-400 text-sm">Memuat...</div>
+            ) : recentUsers.length === 0 ? (
               <div className="py-8 text-center text-slate-400 text-sm">
                 <Users className="h-10 w-10 mx-auto mb-2 opacity-30" />
                 Belum ada pengguna
@@ -248,11 +242,9 @@ export default function AdminOverviewPage() {
                         <p className="text-xs text-slate-500">{formatRelativeTime(user.created_at)}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
-                        {user.role === 'admin' ? 'Admin' : 'Member'}
-                      </Badge>
-                    </div>
+                    <Badge variant={user.role === 'admin' ? 'default' : 'secondary'}>
+                      {user.role === 'admin' ? 'Admin' : 'Member'}
+                    </Badge>
                   </div>
                 ))}
               </div>
@@ -264,12 +256,11 @@ export default function AdminOverviewPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Aktivitas Terbaru</CardTitle>
-            <Link href="/admin/activity-logs" className="text-sm text-blue-600 hover:text-blue-700">
-              Lihat Semua
-            </Link>
           </CardHeader>
           <CardContent>
-            {recentActivities.length === 0 ? (
+            {loading ? (
+              <div className="py-8 text-center text-slate-400 text-sm">Memuat...</div>
+            ) : recentActivities.length === 0 ? (
               <div className="py-8 text-center text-slate-400 text-sm">
                 <Activity className="h-10 w-10 mx-auto mb-2 opacity-30" />
                 Belum ada aktivitas
@@ -281,13 +272,10 @@ export default function AdminOverviewPage() {
                     <div className={`p-2 rounded-lg ${
                       activity.status === 'success' ? 'bg-emerald-50 text-emerald-600' :
                       activity.status === 'warning' ? 'bg-amber-50 text-amber-600' :
-                      activity.status === 'error' ? 'bg-red-50 text-red-600' :
                       'bg-blue-50 text-blue-600'
                     }`}>
                       {activity.type === 'user' && <Users className="h-4 w-4" />}
                       {activity.type === 'license' && <Key className="h-4 w-4" />}
-                      {activity.type === 'order' && <TrendingUp className="h-4 w-4" />}
-                      {activity.type === 'system' && <Activity className="h-4 w-4" />}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-slate-900">{activity.title}</p>
@@ -320,30 +308,12 @@ export default function AdminOverviewPage() {
                 </div>
               </Button>
             </Link>
-            <Link href="/admin/licenses">
-              <Button variant="outline" className="w-full justify-start h-auto py-4">
-                <Key className="h-4 w-4 mr-3" />
-                <div className="text-left">
-                  <p className="font-medium">Kelola Lisensi</p>
-                  <p className="text-xs text-slate-500">Lihat semua lisensi</p>
-                </div>
-              </Button>
-            </Link>
             <Link href="/admin/users?role=admin">
               <Button variant="outline" className="w-full justify-start h-auto py-4">
                 <Shield className="h-4 w-4 mr-3" />
                 <div className="text-left">
                   <p className="font-medium">Admin Baru</p>
                   <p className="text-xs text-slate-500">Tambah admin</p>
-                </div>
-              </Button>
-            </Link>
-            <Link href="/admin/settings">
-              <Button variant="outline" className="w-full justify-start h-auto py-4">
-                <Shield className="h-4 w-4 mr-3" />
-                <div className="text-left">
-                  <p className="font-medium">Pengaturan</p>
-                  <p className="text-xs text-slate-500">Konfigurasi sistem</p>
                 </div>
               </Button>
             </Link>
