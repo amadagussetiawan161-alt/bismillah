@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans' })
 
 export const metadata: Metadata = {
   title: { default: 'SaaS Platform - Admin Dashboard', template: '%s | SaaS Platform' },
-  description: 'Platform administrasi SaaS untuk mengelola pengguna, lisensi, dan produk.',
+  description: 'Platform administrasi SaaS untuk mengelola pengguna.',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
