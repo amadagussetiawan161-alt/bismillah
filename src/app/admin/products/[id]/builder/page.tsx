@@ -1,137 +1,885 @@
 'use client'
 
-import { useState, useEffect, Suspense, useCallback } from 'react'
+import React, { useState, useEffect, Suspense, useCallback } from 'react'
 import { useRouter, use } from 'next/navigation'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import {
   Loader2, Eye, Save, Globe, Plus, Trash2, Copy,
   ChevronUp, ChevronDown, Type, Image as ImageIcon, Video,
-  Star, Clock, HelpCircle, ShoppingCart, Link2,
-  FileText, Layout, MoveVertical, Code,
-  Smartphone, Tablet, Monitor, ImagePlus, X, Check
+  Star, Clock, HelpCircle, ShoppingCart, Link2, GripVertical,
+  FileText, Layout, MoveVertical, Code, Monitor, Smartphone, Tablet,
+  ImagePlus, X, Package, DollarSign, ArrowRight, Sparkles
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  DragEndEvent,
+  DragStartEvent,
+  useDraggable,
+  useDroppable,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 
+/* ==================== TYPES ==================== */
 interface BuilderBlock {
   id: string
   type: string
   content: Record<string, any>
 }
 
-const BLOCK_TYPES = [
-  { type: 'hero', label: 'Hero', icon: Layout },
-  { type: 'heading', label: 'Heading', icon: Type },
-  { type: 'text', label: 'Text', icon: FileText },
-  { type: 'image', label: 'Image', icon: ImageIcon },
-  { type: 'gallery', label: 'Gallery', icon: ImageIcon },
-  { type: 'video', label: 'Video', icon: Video },
-  { type: 'features', label: 'Features', icon: Star },
-  { type: 'pricing', label: 'Pricing', icon: ShoppingCart },
-  { type: 'testimonials', label: 'Testimonials', icon: Star },
-  { type: 'faq', label: 'FAQ', icon: HelpCircle },
-  { type: 'countdown', label: 'Countdown', icon: Clock },
-  { type: 'cta', label: 'CTA', icon: ShoppingCart },
-  { type: 'affiliate_cta', label: 'Affiliate CTA', icon: Link2 },
-  { type: 'divider', label: 'Divider', icon: SepIcon },
-  { type: 'spacer', label: 'Spacer', icon: MoveVertical },
-  { type: 'html', label: 'Custom HTML', icon: Code },
+interface ProductData {
+  id: string
+  name: string
+  slug: string
+  price: number
+  compare_price: number | null
+  image_url: string | null
+  short_description: string | null
+  description: string | null
+  status: string
+  cta_type: string
+  whatsapp_number: string | null
+  external_url: string | null
+  rating_average: number | null
+  rating_count: number | null
+  sales_count: number | null
+}
+
+/* ==================== BLOCK DEFINITIONS ==================== */
+const BLOCK_CATEGORIES = [
+  {
+    name: 'Basic',
+    blocks: [
+      { type: 'section', label: 'Section', icon: Layout },
+      { type: 'container', label: 'Container', icon: Layout },
+      { type: 'heading', label: 'Heading', icon: Type },
+      { type: 'text', label: 'Text', icon: FileText },
+      { type: 'button', label: 'Button', icon: ArrowRight },
+      { type: 'divider', label: 'Divider', icon: Sparkles },
+      { type: 'spacer', label: 'Spacer', icon: MoveVertical },
+    ],
+  },
+  {
+    name: 'Media',
+    blocks: [
+      { type: 'image', label: 'Image', icon: ImageIcon },
+      { type: 'gallery', label: 'Gallery', icon: ImageIcon },
+      { type: 'video', label: 'Video', icon: Video },
+    ],
+  },
+  {
+    name: 'Marketing',
+    blocks: [
+      { type: 'hero', label: 'Hero', icon: Layout },
+      { type: 'features', label: 'Features', icon: Star },
+      { type: 'pricing', label: 'Pricing', icon: DollarSign },
+      { type: 'testimonials', label: 'Testimonials', icon: Star },
+      { type: 'faq', label: 'FAQ', icon: HelpCircle },
+      { type: 'countdown', label: 'Countdown', icon: Clock },
+      { type: 'cta', label: 'CTA', icon: ShoppingCart },
+    ],
+  },
+  {
+    name: 'Product',
+    blocks: [
+      { type: 'product_image', label: 'Product Image', icon: ImageIcon },
+      { type: 'product_name', label: 'Product Name', icon: Package },
+      { type: 'product_price', label: 'Product Price', icon: DollarSign },
+      { type: 'product_description', label: 'Product Description', icon: FileText },
+      { type: 'buy_button', label: 'Buy Button', icon: ShoppingCart },
+    ],
+  },
+  {
+    name: 'Advanced',
+    blocks: [
+      { type: 'html', label: 'Custom HTML', icon: Code },
+    ],
+  },
 ]
 
+/* ==================== DEFAULT CONTENT ==================== */
+function getDefaultContent(type: string): Record<string, any> {
+  switch (type) {
+    case 'section': return { padding: '80', bgColor: '#ffffff', maxWidth: '1200' }
+    case 'container': return { padding: '40', bgColor: '#f8fafc', borderRadius: '12', maxWidth: '1200' }
+    case 'heading': return { text: 'Section Heading', level: 'h2', align: 'center', color: '#0f172a', fontSize: '32', fontWeight: '700' }
+    case 'text': return { text: 'Enter your content here...', align: 'left', color: '#475569', fontSize: '16', lineHeight: '1.6' }
+    case 'button': return { text: 'Click Me', url: '', style: 'primary', size: 'md', align: 'center', rounded: 'md' }
+    case 'image': return { src: '', alt: '', width: '100%', height: 'auto', borderRadius: '12', align: 'center', caption: '' }
+    case 'gallery': return { images: [], columns: '3', gap: '16', borderRadius: '12' }
+    case 'video': return { url: '', caption: '', width: '100%', borderRadius: '12' }
+    case 'hero': return { title: 'Your Product Name', subtitle: 'The best solution for your needs', buttonText: 'Get Started', bgImage: '', bgColor: '#0f172a', align: 'center', height: '500', overlayOpacity: '60' }
+    case 'features': return { items: [{ title: 'Feature 1', description: 'Description text', icon: '' }, { title: 'Feature 2', description: 'Description text', icon: '' }, { title: 'Feature 3', description: 'Description text', icon: '' }], columns: '3', align: 'center' }
+    case 'pricing': return { title: 'Simple Pricing', price: '$99', period: 'one-time', features: ['Feature 1', 'Feature 2', 'Feature 3'], buttonText: 'Buy Now', highlighted: false, align: 'center' }
+    case 'testimonials': return { items: [{ name: 'John Doe', role: 'Customer', text: 'Great product!', avatar: '', rating: '5' }], columns: '2', align: 'center' }
+    case 'faq': return { items: [{ question: 'Question?', answer: 'Answer.' }], align: 'left' }
+    case 'countdown': return { targetDate: '', label: 'Offer ends in:', style: 'modern', align: 'center' }
+    case 'cta': return { title: 'Ready to get started?', text: 'Join thousands of satisfied customers.', buttonText: 'Buy Now', align: 'center', bgColor: '#f1f5f9' }
+    case 'divider': return { style: 'solid', color: '#e2e8f0', height: '1', width: '100' }
+    case 'spacer': return { height: 40 }
+    case 'product_image': return { width: '100%', borderRadius: '12', align: 'center', maxWidth: '600' }
+    case 'product_name': return { level: 'h1', align: 'center', color: '#0f172a', fontSize: '48', fontWeight: '800' }
+    case 'product_price': return { align: 'center', showCompare: true, color: '#0f172a', compareColor: '#94a3b8', fontSize: '36', fontWeight: '700' }
+    case 'product_description': return { align: 'center', color: '#475569', fontSize: '18', maxLines: '0' }
+    case 'buy_button': return { text: 'Buy Now', style: 'primary', size: 'lg', align: 'center', rounded: 'md', fullWidth: false }
+    case 'html': return { code: '<div style="padding: 20px; background: #f1f5f9; border-radius: 8px;">Custom HTML</div>' }
+    default: return {}
+  }
+}
+
+/* ==================== TEMPLATES ==================== */
 const TEMPLATES: { name: string; blocks: BuilderBlock[] }[] = [
   {
     name: 'Product Sales Page',
     blocks: [
-      { id: 't1', type: 'hero', content: { title: 'Your Amazing Product', subtitle: 'The complete solution that transforms how you work', buttonText: 'Get Started Now', bgImage: '', align: 'center' } },
-      { id: 't2', type: 'features', content: { items: [{ title: 'Easy Setup', description: 'Get up and running in minutes with our intuitive setup wizard' }, { title: 'Powerful Features', description: 'Unlock advanced capabilities with our comprehensive feature set' }, { title: '24/7 Support', description: 'Our team is always here to help you succeed' }] } },
-      { id: 't3', type: 'pricing', content: { price: '$49', period: 'one-time', features: ['Full Access', 'Lifetime Updates', 'Priority Support', 'Commercial License'], buttonText: 'Buy Now' } },
-      { id: 't4', type: 'testimonials', content: { items: [{ name: 'Sarah Johnson', role: 'Designer', text: 'This product completely changed my workflow. Highly recommended!' }, { name: 'Mike Chen', role: 'Developer', text: 'Best investment I made this year. The features are incredible.' }] } },
-      { id: 't5', type: 'faq', content: { items: [{ question: 'What is included?', answer: 'Everything you see in the feature list plus lifetime updates.' }, { question: 'Is there a refund policy?', answer: 'Yes, we offer a 30-day money-back guarantee.' }] } },
-      { id: 't6', type: 'cta', content: { text: 'Ready to transform your business?', buttonText: 'Get Started Today', align: 'center' } },
-    ]
-  },
-  {
-    name: 'SaaS Product',
-    blocks: [
-      { id: 's1', type: 'hero', content: { title: 'Scale Your Business', subtitle: 'Cloud-based platform for modern teams', buttonText: 'Start Free Trial', bgImage: '', align: 'center' } },
-      { id: 's2', type: 'features', content: { items: [{ title: 'Cloud Sync', description: 'Real-time synchronization across all devices' }, { title: 'Team Collaboration', description: 'Work together seamlessly with built-in tools' }, { title: 'Analytics Dashboard', description: 'Track performance with detailed insights' }] } },
-      { id: 's3', type: 'pricing', content: { price: '$29', period: '/month', features: ['Unlimited Users', 'API Access', 'Custom Integrations', 'Dedicated Support'], buttonText: 'Start Trial' } },
-      { id: 's4', type: 'testimonials', content: { items: [{ name: 'Alex Rivera', role: 'CTO', text: 'Reduced our operational costs by 40% in the first month.' }] } },
-      { id: 's5', type: 'cta', content: { text: 'Join 10,000+ teams already using our platform', buttonText: 'Get Started Free', align: 'center' } },
+      { id: 't1', type: 'hero', content: { title: 'Your Amazing Product', subtitle: 'The complete solution that transforms how you work', buttonText: 'Get Started Now', bgImage: '', bgColor: '#0f172a', align: 'center', height: '600', overlayOpacity: '50' } },
+      { id: 't2', type: 'features', content: { items: [{ title: 'Easy Setup', description: 'Get up and running in minutes' }, { title: 'Powerful Features', description: 'Unlock advanced capabilities' }, { title: '24/7 Support', description: 'Our team is always here to help' }], columns: '3', align: 'center' } },
+      { id: 't3', type: 'pricing', content: { title: 'Simple Pricing', price: '$49', period: 'one-time', features: ['Full Access', 'Lifetime Updates', 'Priority Support', 'Commercial License'], buttonText: 'Buy Now', highlighted: false, align: 'center' } },
+      { id: 't4', type: 'testimonials', content: { items: [{ name: 'Sarah Johnson', role: 'Designer', text: 'This product completely changed my workflow.', rating: '5' }, { name: 'Mike Chen', role: 'Developer', text: 'Best investment I made this year.', rating: '5' }], columns: '2', align: 'center' } },
+      { id: 't5', type: 'faq', content: { items: [{ question: 'What is included?', answer: 'Everything you see in the feature list plus lifetime updates.' }, { question: 'Is there a refund policy?', answer: 'Yes, we offer a 30-day money-back guarantee.' }], align: 'center' } },
+      { id: 't6', type: 'cta', content: { title: 'Ready to transform your business?', text: 'Join thousands of satisfied customers today.', buttonText: 'Buy Now', align: 'center', bgColor: '#f1f5f9' } },
     ]
   },
   {
     name: 'Course Landing Page',
     blocks: [
-      { id: 'c1', type: 'hero', content: { title: 'Master Digital Marketing', subtitle: 'Learn from industry experts and grow your business', buttonText: 'Enroll Now', bgImage: '', align: 'center' } },
-      { id: 'c2', type: 'features', content: { items: [{ title: '50+ Video Lessons', description: 'Comprehensive curriculum covering all aspects' }, { title: 'Downloadable Resources', description: 'Templates, checklists, and guides included' }, { title: 'Certificate', description: 'Earn a verified certificate upon completion' }] } },
-      { id: 'c3', type: 'pricing', content: { price: '$199', period: 'one-time', features: ['Lifetime Access', 'All Modules', 'Community Access', 'Certificate'], buttonText: 'Enroll Now' } },
-      { id: 'c4', type: 'testimonials', content: { items: [{ name: 'Emily Davis', role: 'Student', text: 'This course paid for itself within the first week!' }] } },
-      { id: 'c5', type: 'faq', content: { items: [{ question: 'How long do I have access?', answer: 'Lifetime access to all course materials and updates.' }, { question: 'Is there a community?', answer: 'Yes, you get access to our private community forum.' }] } },
-      { id: 'c6', type: 'cta', content: { text: 'Start your learning journey today', buttonText: 'Enroll Now', align: 'center' } },
+      { id: 'c1', type: 'hero', content: { title: 'Master Digital Marketing', subtitle: 'Learn from industry experts and grow your business', buttonText: 'Enroll Now', bgColor: '#1e40af', align: 'center', height: '600', overlayOpacity: '40' } },
+      { id: 'c2', type: 'features', content: { items: [{ title: '50+ Video Lessons', description: 'Comprehensive curriculum covering all aspects' }, { title: 'Downloadable Resources', description: 'Templates, checklists, and guides included' }, { title: 'Certificate', description: 'Earn a verified certificate upon completion' }], columns: '3', align: 'center' } },
+      { id: 'c3', type: 'pricing', content: { title: 'Enroll Today', price: '$199', period: 'one-time', features: ['Lifetime Access', 'All Modules', 'Community Access', 'Certificate'], buttonText: 'Enroll Now', highlighted: true, align: 'center' } },
+      { id: 'c4', type: 'testimonials', content: { items: [{ name: 'Emily Davis', role: 'Student', text: 'This course paid for itself within the first week!', rating: '5' }], columns: '1', align: 'center' } },
+      { id: 'c5', type: 'faq', content: { items: [{ question: 'How long do I have access?', answer: 'Lifetime access to all course materials and updates.' }, { question: 'Is there a community?', answer: 'Yes, you get access to our private community forum.' }], align: 'center' } },
     ]
   },
   {
-    name: 'Ebook Landing Page',
+    name: 'Software Landing Page',
     blocks: [
-      { id: 'e1', type: 'hero', content: { title: 'The Ultimate Guide', subtitle: 'Everything you need to know in one comprehensive ebook', buttonText: 'Get Your Copy', bgImage: '', align: 'center' } },
-      { id: 'e2', type: 'features', content: { items: [{ title: '300+ Pages', description: 'In-depth coverage of every topic' }, { title: 'Actionable Strategies', description: 'Step-by-step implementation guides' }, { title: 'Bonus Templates', description: 'Ready-to-use templates and frameworks' }] } },
-      { id: 'e3', type: 'pricing', content: { price: '$19', period: 'one-time', features: ['PDF + EPUB', 'Bonus Materials', 'Free Updates', 'Money Back Guarantee'], buttonText: 'Buy Now' } },
-      { id: 'e4', type: 'testimonials', content: { items: [{ name: 'David Kim', role: 'Reader', text: 'Best ebook I have read this year. Practical and actionable.' }] } },
-      { id: 'e5', type: 'cta', content: { text: 'Get instant access to your copy', buttonText: 'Buy Now', align: 'center' } },
+      { id: 's1', type: 'hero', content: { title: 'Scale Your Business', subtitle: 'Cloud-based platform for modern teams', buttonText: 'Start Free Trial', bgColor: '#0f172a', align: 'center', height: '600', overlayOpacity: '50' } },
+      { id: 's2', type: 'features', content: { items: [{ title: 'Cloud Sync', description: 'Real-time synchronization across all devices' }, { title: 'Team Collaboration', description: 'Work together seamlessly with built-in tools' }, { title: 'Analytics Dashboard', description: 'Track performance with detailed insights' }], columns: '3', align: 'center' } },
+      { id: 's3', type: 'pricing', content: { title: 'Pricing Plans', price: '$29', period: '/month', features: ['Unlimited Users', 'API Access', 'Custom Integrations', 'Dedicated Support'], buttonText: 'Start Trial', highlighted: true, align: 'center' } },
+      { id: 's4', type: 'testimonials', content: { items: [{ name: 'Alex Rivera', role: 'CTO', text: 'Reduced our operational costs by 40% in the first month.', rating: '5' }], columns: '1', align: 'center' } },
+      { id: 's5', type: 'cta', content: { title: 'Join 10,000+ teams', text: 'Start your free trial today. No credit card required.', buttonText: 'Get Started Free', align: 'center', bgColor: '#f1f5f9' } },
     ]
   },
   {
-    name: 'AI Tool Landing Page',
+    name: 'Affiliate Landing Page',
     blocks: [
-      { id: 'a1', type: 'hero', content: { title: 'AI-Powered Creativity', subtitle: 'Generate stunning content in seconds with AI', buttonText: 'Try Free', bgImage: '', align: 'center' } },
-      { id: 'a2', type: 'features', content: { items: [{ title: 'AI Writer', description: 'Generate blog posts, emails, and more instantly' }, { title: 'AI Images', description: 'Create unique images from text descriptions' }, { title: 'AI Code', description: 'Write and debug code with AI assistance' }] } },
-      { id: 'a3', type: 'pricing', content: { price: '$39', period: '/month', features: ['Unlimited Generations', 'All AI Models', 'Priority Processing', 'API Access'], buttonText: 'Start Free Trial' } },
-      { id: 'a4', type: 'testimonials', content: { items: [{ name: 'Lisa Park', role: 'Content Creator', text: 'This AI tool 10x my content output. Absolutely game-changing.' }] } },
-      { id: 'a5', type: 'cta', content: { text: 'Join the AI revolution today', buttonText: 'Try For Free', align: 'center' } },
+      { id: 'a1', type: 'hero', content: { title: 'Earn While You Share', subtitle: 'Promote products you love and earn commissions', buttonText: 'Join Now', bgColor: '#166534', align: 'center', height: '500', overlayOpacity: '40' } },
+      { id: 'a2', type: 'features', content: { items: [{ title: 'High Commissions', description: 'Earn up to 50% on every sale you refer' }, { title: 'Real-time Tracking', description: 'Monitor your earnings with live analytics' }, { title: 'Instant Payouts', description: 'Get paid directly to your account' }], columns: '3', align: 'center' } },
+      { id: 'a3', type: 'pricing', content: { title: 'Free to Join', price: 'Free', period: 'to join', features: ['No Setup Fee', 'Marketing Materials', 'Dedicated Manager', 'Monthly Bonuses'], buttonText: 'Join Affiliate Program', highlighted: false, align: 'center' } },
+      { id: 'a4', type: 'testimonials', content: { items: [{ name: 'James Wilson', role: 'Affiliate Partner', text: 'Made my first $1000 in the first month.', rating: '5' }], columns: '1', align: 'center' } },
+      { id: 'a5', type: 'cta', content: { title: 'Start earning passive income', text: 'Promote products you believe in and earn.', buttonText: 'Become an Affiliate', align: 'center', bgColor: '#f0fdf4' } },
     ]
   },
-  {
-    name: 'Affiliate Product Page',
-    blocks: [
-      { id: 'af1', type: 'hero', content: { title: 'Earn While You Share', subtitle: 'Promote products you love and earn commissions', buttonText: 'Join Now', bgImage: '', align: 'center' } },
-      { id: 'af2', type: 'features', content: { items: [{ title: 'High Commissions', description: 'Earn up to 50% on every sale you refer' }, { title: 'Real-time Tracking', description: 'Monitor your earnings with live analytics' }, { title: 'Instant Payouts', description: 'Get paid directly to your account' }] } },
-      { id: 'af3', type: 'pricing', content: { price: 'Free', period: 'to join', features: ['No Setup Fee', 'Marketing Materials', 'Dedicated Manager', 'Monthly Bonuses'], buttonText: 'Join Affiliate Program' } },
-      { id: 'af4', type: 'affiliate_cta', content: { text: 'Start earning passive income by promoting products you believe in', buttonText: 'Become an Affiliate', align: 'center' } },
-      { id: 'af5', type: 'testimonials', content: { items: [{ name: 'James Wilson', role: 'Affiliate Partner', text: 'Made my first $1000 in the first month. The support is amazing.' }] } },
-    ]
-  }
 ]
 
-function getDefaultContent(type: string): Record<string, any> {
+/* ==================== SORTABLE BLOCK ITEM ==================== */
+function SortableBlockItem({ block, index, isSelected, onClick, onDuplicate, onDelete }: {
+  block: BuilderBlock
+  index: number
+  isSelected: boolean
+  onClick: () => void
+  onDuplicate: () => void
+  onDelete: () => void
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: block.id })
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 }
+
+  return (
+    <div ref={setNodeRef} style={style} onClick={onClick} className={`relative group rounded-lg border-2 cursor-pointer transition-all ${isSelected ? 'border-primary bg-primary/5' : 'border-transparent hover:border-muted'}`}>
+      <div className="absolute right-2 top-2 opacity-0 group-hover:opacity-100 flex gap-1 z-10">
+        <button type="button" {...attributes} {...listeners} className="p-1 bg-background rounded shadow border cursor-grab active:cursor-grabbing"><GripVertical className="h-3 w-3" /></button>
+        <button type="button" onClick={(e) => { e.stopPropagation(); onDuplicate() }} className="p-1 bg-background rounded shadow border"><Copy className="h-3 w-3" /></button>
+        <button type="button" onClick={(e) => { e.stopPropagation(); onDelete() }} className="p-1 bg-background rounded shadow border text-destructive"><Trash2 className="h-3 w-3" /></button>
+      </div>
+      <div className="pointer-events-none p-4">
+        <BlockPreview block={block} />
+      </div>
+    </div>
+  )
+}
+
+/* ==================== BLOCK PREVIEW (CANVAS) ==================== */
+function BlockPreview({ block }: { block: BuilderBlock }) {
+  const { type, content } = block
+  const getAlign = (a: string) => a === 'center' ? 'text-center' : a === 'right' ? 'text-right' : 'text-left'
+  const getLevel = (l: string) => {
+    if (l === 'h1') return 'h1'
+    if (l === 'h3') return 'h3'
+    if (l === 'h4') return 'h4'
+    return 'h2'
+  }
+
   switch (type) {
-    case 'hero': return { title: 'Your Product Name', subtitle: 'The best solution for your needs', buttonText: 'Get Started', bgImage: '', align: 'center' }
-    case 'heading': return { text: 'Section Heading', level: 'h2', align: 'center' }
-    case 'text': return { text: 'Enter your content here...', align: 'left' }
-    case 'image': return { src: '', alt: '', caption: '', align: 'center' }
-    case 'gallery': return { images: [] }
-    case 'video': return { url: '', caption: '' }
-    case 'features': return { items: [{ title: 'Feature 1', description: 'Description' }, { title: 'Feature 2', description: 'Description' }, { title: 'Feature 3', description: 'Description' }] }
-    case 'pricing': return { price: '$99', period: 'one-time', features: ['Feature 1', 'Feature 2', 'Feature 3'], buttonText: 'Buy Now' }
-    case 'testimonials': return { items: [{ name: 'John Doe', role: 'Customer', text: 'Great product!', avatar: '' }] }
-    case 'faq': return { items: [{ question: 'Question?', answer: 'Answer.' }] }
-    case 'countdown': return { targetDate: '', label: 'Offer ends in:' }
-    case 'cta': return { text: 'Ready to get started?', buttonText: 'Buy Now', align: 'center' }
-    case 'affiliate_cta': return { text: 'Earn commissions by promoting this product!', buttonText: 'Join Affiliate Program', align: 'center' }
-    case 'divider': return { style: 'solid' }
-    case 'spacer': return { height: 40 }
-    case 'html': return { code: '<div>Custom HTML</div>' }
-    default: return {}
+    case 'section': return (
+      <div className="py-2 text-xs text-muted-foreground border border-dashed border-muted rounded px-3 bg-muted/20">
+        Section: {content.padding}px padding, {content.bgColor}
+      </div>
+    )
+    case 'container': return (
+      <div className="py-2 text-xs text-muted-foreground border border-dashed border-muted rounded px-3 bg-muted/20">
+        Container: {content.padding}px padding, {content.bgColor}
+      </div>
+    )
+    case 'hero': return (
+      <div className="text-center py-8 rounded-lg text-white text-xs" style={{ background: content.bgColor || '#0f172a' }}>
+        <div className="font-bold text-lg">{content.title}</div>
+        <div>{content.subtitle}</div>
+        <div className="mt-2 px-3 py-1 bg-white text-black rounded inline-block">{content.buttonText}</div>
+      </div>
+    )
+    case 'heading': return (
+      <div className={`py-3 ${getAlign(content.align)} text-xs`}>
+        {getLevel(content.level) === 'h1' ? <h1 className="font-bold text-lg">{content.text}</h1> : getLevel(content.level) === 'h3' ? <h3 className="font-bold">{content.text}</h3> : <h2 className="font-bold text-base">{content.text}</h2>}
+      </div>
+    )
+    case 'text': return <div className={`py-3 ${getAlign(content.align)} text-xs text-muted-foreground`}><p>{content.text}</p></div>
+    case 'button': return (
+      <div className={`py-3 ${getAlign(content.align)}`}>
+        <span className="px-3 py-1 bg-primary text-white rounded text-xs">{content.text}</span>
+      </div>
+    )
+    case 'image': return <div className={`py-3 ${getAlign(content.align)}`}>{content.src ? <img src={content.src} alt={content.alt} className="max-h-24 mx-auto rounded" /> : <div className="h-16 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">Image</div>}{content.caption && <p className="text-xs mt-1">{content.caption}</p>}</div>
+    case 'gallery': return <div className="grid grid-cols-3 gap-2 py-3">{content.images?.length ? content.images.map((img: string, i: number) => <img key={i} src={img} className="h-12 w-full object-cover rounded" />) : <div className="col-span-3 h-12 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">Gallery</div>}</div>
+    case 'video': return <div className="py-3 bg-muted rounded h-20 flex items-center justify-center text-xs text-muted-foreground">Video: {content.url || 'No URL'}</div>
+    case 'features': return <div className="grid grid-cols-3 gap-2 py-3">{content.items?.map((f: any, i: number) => <div key={i} className="p-2 bg-muted rounded text-xs"><strong>{f.title}</strong><p className="text-muted-foreground">{f.description}</p></div>)}</div>
+    case 'pricing': return <div className="py-3 bg-muted rounded text-center text-xs"><div className="text-lg font-bold">{content.price}</div><div className="text-muted-foreground">{content.period}</div></div>
+    case 'testimonials': return <div className="py-3 bg-muted rounded text-xs italic">&ldquo;{content.items?.[0]?.text || 'Testimonial'}&rdquo;</div>
+    case 'faq': return <div className="space-y-1 py-3">{content.items?.map((q: any, i: number) => <div key={i} className="p-2 bg-muted rounded text-xs"><strong>Q: {q.question}</strong></div>)}</div>
+    case 'countdown': return <div className="py-3 bg-muted rounded text-center text-xs">Countdown: {content.label}</div>
+    case 'cta': return <div className={`py-4 text-center bg-muted rounded text-xs`}><p className="font-bold">{content.title}</p><p>{content.text}</p><span className="mt-1 px-3 py-1 bg-primary text-white rounded inline-block">{content.buttonText}</span></div>
+    case 'divider': return <div className="py-2"><hr style={{ borderStyle: content.style, borderColor: content.color, height: content.height + 'px' }} /></div>
+    case 'spacer': return <div style={{ height: content.height }} className="border border-dashed border-muted" />
+    case 'product_image': return <div className="py-3 bg-muted rounded text-center text-xs text-muted-foreground">Product Image (auto)</div>
+    case 'product_name': return <div className="py-3 text-center text-xs font-bold">Product Name (auto)</div>
+    case 'product_price': return <div className="py-3 text-center text-xs font-bold">$Price (auto)</div>
+    case 'product_description': return <div className="py-3 text-center text-xs text-muted-foreground">Product Description (auto)</div>
+    case 'buy_button': return <div className="py-3 text-center"><span className="px-3 py-1 bg-primary text-white rounded text-xs">{content.text}</span></div>
+    case 'html': return <div className="text-xs text-muted-foreground py-3 bg-muted rounded px-2">Custom HTML</div>
+    default: return <div className="text-xs text-muted-foreground py-3">Unknown block</div>
   }
 }
 
+/* ==================== LIVE PREVIEW RENDERER ==================== */
+function LivePreviewRenderer({ blocks, product, device }: { blocks: BuilderBlock[]; product: ProductData; device: string }) {
+  const isAvailable = product.status === 'active'
+  const getCtaUrl = () => {
+    switch (product.cta_type) {
+      case 'whatsapp': return product.whatsapp_number ? `https://wa.me/${product.whatsapp_number}` : '#'
+      case 'external_link': return product.external_url || '#'
+      case 'order_form': return '#'
+      default: return `/checkout?product=${product.slug}`
+    }
+  }
+  const getCtaLabel = () => {
+    switch (product.cta_type) {
+      case 'whatsapp': return 'Chat on WhatsApp'
+      case 'external_link': return 'Visit Link'
+      case 'order_form': return 'Order Now'
+      default: return 'Buy Now'
+    }
+  }
+
+  const widthClass = device === 'mobile' ? 'max-w-[375px]' : device === 'tablet' ? 'max-w-[768px]' : 'w-full'
+
+  return (
+    <div className="flex-1 overflow-auto bg-white flex justify-center">
+      <div className={`${widthClass} transition-all`}>
+        <div className="space-y-0">
+          {blocks.map((block) => {
+            const { type, content } = block
+            const align = content.align || 'left'
+            const alignClass = align === 'center' ? 'text-center' : align === 'right' ? 'text-right' : 'text-left'
+
+            const renderBlock = () => {
+              switch (type) {
+                case 'section': return (
+                  <div className="py-4" style={{ background: content.bgColor, padding: `${content.padding}px 0` }}>
+                    <div className="mx-auto px-4" style={{ maxWidth: content.maxWidth ? `${content.maxWidth}px` : '1200px' }}>
+                      {/* Children are rendered inline as siblings */}
+                    </div>
+                  </div>
+                )
+                case 'container': return (
+                  <div className="mx-auto px-4 rounded-xl" style={{ maxWidth: content.maxWidth ? `${content.maxWidth}px` : '1200px', padding: `${content.padding}px`, background: content.bgColor, borderRadius: `${content.borderRadius}px` }}>
+                    {/* Container children */}
+                  </div>
+                )
+                case 'hero': return (
+                  <section className="relative overflow-hidden text-white flex items-center justify-center" style={{ background: content.bgImage ? undefined : (content.bgColor || '#0f172a'), minHeight: `${content.height}px` }}>
+                    {content.bgImage && <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: `url(${content.bgImage})` }} />}
+                    <div className="absolute inset-0 bg-black" style={{ opacity: (content.overlayOpacity || 50) / 100 }} />
+                    <div className={`relative z-10 px-4 py-20 max-w-3xl mx-auto ${alignClass}`}>
+                      <h1 className="text-4xl md:text-5xl font-bold mb-4" style={{ fontSize: content.fontSize ? `${content.fontSize}px` : undefined }}>{content.title}</h1>
+                      <p className="text-lg text-white/80 mb-8 max-w-xl mx-auto">{content.subtitle}</p>
+                      {isAvailable && <a href={getCtaUrl()} className="inline-block px-6 py-3 bg-white text-slate-900 rounded-lg font-semibold hover:bg-white/90 transition-colors">{content.buttonText || getCtaLabel()}</a>}
+                    </div>
+                  </section>
+                )
+                case 'heading': {
+                  const level = content.level || 'h2'
+                  const style = { fontSize: content.fontSize ? `${content.fontSize}px` : undefined, fontWeight: content.fontWeight, color: content.color }
+                  if (level === 'h1') return <h1 className={`font-bold py-6 px-4 ${alignClass}`} style={style}>{content.text}</h1>
+                  if (level === 'h3') return <h3 className={`font-bold py-4 px-4 ${alignClass}`} style={style}>{content.text}</h3>
+                  return <h2 className={`font-bold py-6 px-4 ${alignClass}`} style={style}>{content.text}</h2>
+                }
+                case 'text': return (
+                  <div className={`py-4 px-4 ${alignClass}`} style={{ color: content.color, fontSize: content.fontSize ? `${content.fontSize}px` : undefined, lineHeight: content.lineHeight }}>
+                    <p>{content.text}</p>
+                  </div>
+                )
+                case 'button': {
+                  const btnStyle = content.style === 'secondary' ? 'bg-secondary text-secondary-foreground' : content.style === 'outline' ? 'bg-transparent border-2 border-primary text-primary' : 'bg-primary text-primary-foreground'
+                  const btnSize = content.size === 'sm' ? 'px-4 py-2 text-sm' : content.size === 'lg' ? 'px-8 py-4 text-lg' : 'px-6 py-3 text-base'
+                  const btnRounded = content.rounded === 'none' ? 'rounded-none' : content.rounded === 'full' ? 'rounded-full' : 'rounded-lg'
+                  return (
+                    <div className={`py-4 px-4 ${alignClass}`}>
+                      <a href={content.url || getCtaUrl()} className={`inline-block font-semibold ${btnStyle} ${btnSize} ${btnRounded} hover:opacity-90 transition-opacity`}>
+                        {content.text}
+                      </a>
+                    </div>
+                  )
+                }
+                case 'image': return (
+                  <div className={`py-4 px-4 ${alignClass}`}>
+                    {content.src && <img src={content.src} alt={content.alt} className="mx-auto" style={{ width: content.width, height: content.height, borderRadius: content.borderRadius ? `${content.borderRadius}px` : undefined }} />}
+                    {content.caption && <p className="text-sm text-muted-foreground mt-2">{content.caption}</p>}
+                  </div>
+                )
+                case 'gallery': return (
+                  <div className="py-4 px-4 grid gap-4" style={{ gridTemplateColumns: `repeat(${content.columns || '3'}, 1fr)`, gap: `${content.gap || 16}px` }}>
+                    {content.images?.map((img: string, i: number) => (
+                      <img key={i} src={img} className="w-full object-cover" style={{ borderRadius: `${content.borderRadius || 12}px` }} />
+                    ))}
+                  </div>
+                )
+                case 'video': return (
+                  <div className="py-4 px-4">
+                    {content.url && (
+                      <div className="w-full" style={{ borderRadius: `${content.borderRadius || 12}px`, overflow: 'hidden' }}>
+                        <iframe src={content.url} className="w-full aspect-video" allowFullScreen />
+                      </div>
+                    )}
+                    {content.caption && <p className="text-sm text-muted-foreground mt-2">{content.caption}</p>}
+                  </div>
+                )
+                case 'features': return (
+                  <div className="py-8 px-4">
+                    <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(${content.columns || '3'}, 1fr)` }}>
+                      {content.items?.map((f: any, i: number) => (
+                        <div key={i} className="p-6 bg-muted/50 rounded-xl">
+                          <h3 className="font-semibold mb-2">{f.title}</h3>
+                          <p className="text-sm text-muted-foreground">{f.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+                case 'pricing': return (
+                  <div className="py-8 px-4">
+                    <div className={`max-w-sm mx-auto p-8 rounded-2xl text-center border-2 ${content.highlighted ? 'border-primary bg-primary/5' : 'border-muted bg-muted/50'}`}>
+                      <h3 className="text-lg font-semibold mb-2">{content.title}</h3>
+                      <div className="text-4xl font-bold mb-1">{content.price}</div>
+                      <div className="text-sm text-muted-foreground mb-6">{content.period}</div>
+                      <ul className="space-y-2 mb-6 text-sm text-left">
+                        {content.features?.map((f: string, i: number) => (
+                          <li key={i} className="flex items-center gap-2"><Check className="h-4 w-4 text-primary" />{f}</li>
+                        ))}
+                      </ul>
+                      {isAvailable && <a href={getCtaUrl()} className="inline-block w-full py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90">{content.buttonText || getCtaLabel()}</a>}
+                      {!isAvailable && <button disabled className="w-full py-3 bg-muted text-muted-foreground rounded-lg font-semibold cursor-not-allowed">{product.status === 'sold_out' ? 'Sold Out' : 'Coming Soon'}</button>}
+                    </div>
+                  </div>
+                )
+                case 'testimonials': return (
+                  <div className="py-8 px-4">
+                    <div className="grid gap-6" style={{ gridTemplateColumns: `repeat(${content.columns || '2'}, 1fr)` }}>
+                      {content.items?.map((t: any, i: number) => (
+                        <div key={i} className="p-6 bg-muted/50 rounded-xl">
+                          <p className="italic text-muted-foreground mb-4">&ldquo;{t.text}&rdquo;</p>
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                              <span className="font-semibold text-sm">{t.name?.[0]}</span>
+                            </div>
+                            <div>
+                              <div className="font-medium text-sm">{t.name}</div>
+                              <div className="text-xs text-muted-foreground">{t.role}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+                case 'faq': return (
+                  <div className="py-8 px-4 max-w-2xl mx-auto">
+                    <div className="space-y-4">
+                      {content.items?.map((q: any, i: number) => (
+                        <div key={i} className="p-4 bg-muted/50 rounded-xl">
+                          <h4 className="font-semibold mb-2">{q.question}</h4>
+                          <p className="text-sm text-muted-foreground">{q.answer}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+                case 'countdown': return (
+                  <div className={`py-8 px-4 ${alignClass}`}>
+                    <p className="text-muted-foreground mb-2">{content.label}</p>
+                    <div className="text-3xl font-bold">{content.targetDate || 'No date set'}</div>
+                  </div>
+                )
+                case 'cta': return (
+                  <div className={`py-12 px-4 ${alignClass}`} style={{ background: content.bgColor || '#f1f5f9' }}>
+                    <h3 className="text-xl font-bold mb-2">{content.title}</h3>
+                    <p className="mb-4">{content.text}</p>
+                    {isAvailable && <a href={getCtaUrl()} className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90">{content.buttonText || getCtaLabel()}</a>}
+                    {!isAvailable && <button disabled className="px-6 py-3 bg-muted text-muted-foreground rounded-lg font-semibold cursor-not-allowed">{product.status === 'sold_out' ? 'Sold Out' : 'Coming Soon'}</button>}
+                  </div>
+                )
+                case 'divider': return (
+                  <div className="py-4 px-4">
+                    <hr style={{ borderStyle: content.style || 'solid', borderColor: content.color || '#e2e8f0', borderWidth: `${content.height || 1}px 0 0 0` }} />
+                  </div>
+                )
+                case 'spacer': return <div style={{ height: content.height || 40 }} />
+                case 'product_image': return (
+                  <div className={`py-4 px-4 ${alignClass}`}>
+                    {product.image_url && <img src={product.image_url} alt={product.name} className="mx-auto" style={{ width: content.width || '100%', maxWidth: content.maxWidth ? `${content.maxWidth}px` : '600px', borderRadius: `${content.borderRadius || 12}px` }} />}
+                  </div>
+                )
+                case 'product_name': {
+                  const level = content.level || 'h1'
+                  const style = { fontSize: content.fontSize ? `${content.fontSize}px` : undefined, fontWeight: content.fontWeight, color: content.color }
+                  if (level === 'h1') return <h1 className={`py-4 px-4 font-bold ${alignClass}`} style={style}>{product.name}</h1>
+                  if (level === 'h3') return <h3 className={`py-4 px-4 font-bold ${alignClass}`} style={style}>{product.name}</h3>
+                  return <h2 className={`py-4 px-4 font-bold ${alignClass}`} style={style}>{product.name}</h2>
+                }
+                case 'product_price': return (
+                  <div className={`py-4 px-4 ${alignClass}`}>
+                    <div className="flex items-baseline gap-3 justify-center" style={{ fontSize: content.fontSize ? `${content.fontSize}px` : '36px', fontWeight: content.fontWeight || '700' }}>
+                      <span style={{ color: content.color || '#0f172a' }}>${product.price}</span>
+                      {content.showCompare && product.compare_price && <span className="line-through" style={{ color: content.compareColor || '#94a3b8', fontSize: '0.6em' }}>${product.compare_price}</span>}
+                    </div>
+                  </div>
+                )
+                case 'product_description': return (
+                  <div className={`py-4 px-4 ${alignClass}`} style={{ color: content.color || '#475569', fontSize: content.fontSize ? `${content.fontSize}px` : '18px' }}>
+                    <p>{product.short_description || product.description || ''}</p>
+                  </div>
+                )
+                case 'buy_button': {
+                  const btnStyle = content.style === 'secondary' ? 'bg-secondary text-secondary-foreground' : content.style === 'outline' ? 'bg-transparent border-2 border-primary text-primary' : 'bg-primary text-primary-foreground'
+                  const btnSize = content.size === 'sm' ? 'px-4 py-2 text-sm' : content.size === 'lg' ? 'px-8 py-4 text-lg' : 'px-6 py-3 text-base'
+                  const btnRounded = content.rounded === 'none' ? 'rounded-none' : content.rounded === 'full' ? 'rounded-full' : 'rounded-lg'
+                  const btnWidth = content.fullWidth ? 'w-full' : 'inline-block'
+                  return (
+                    <div className={`py-4 px-4 ${alignClass}`}>
+                      {isAvailable ? (
+                        <a href={getCtaUrl()} className={`${btnWidth} font-semibold ${btnStyle} ${btnSize} ${btnRounded} hover:opacity-90 transition-opacity`}>
+                          {content.text || getCtaLabel()}
+                        </a>
+                      ) : (
+                        <button disabled className={`${btnWidth} font-semibold bg-muted text-muted-foreground ${btnSize} ${btnRounded} cursor-not-allowed`}>
+                          {product.status === 'sold_out' ? 'Sold Out' : 'Coming Soon'}
+                        </button>
+                      )}
+                    </div>
+                  )
+                }
+                case 'html': return <div className="py-4 px-4" dangerouslySetInnerHTML={{ __html: content.code }} />
+                default: return null
+              }
+            }
+            return <div key={block.id}>{renderBlock()}</div>
+          })}
+        </div>
+        {!isAvailable && (
+          <div className="fixed bottom-0 left-0 right-0 bg-destructive text-white text-center py-3 font-semibold z-50">
+            {product.status === 'sold_out' ? 'SOLD OUT' : 'COMING SOON'}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+/* ==================== BLOCK SETTINGS ==================== */
+function BlockSettings({ block, onChange, onImageSelect }: { block: BuilderBlock; onChange: (content: Record<string, any>) => void; onImageSelect: (callback: (url: string) => void) => void }) {
+  const { type, content } = block
+  const update = (key: string, value: any) => onChange({ ...content, [key]: value })
+  const updateArray = (key: string, index: number, field: string, value: any) => {
+    const arr = [...(content[key] || [])]
+    arr[index] = { ...arr[index], [field]: value }
+    onChange({ ...content, [key]: arr })
+  }
+  const addArrayItem = (key: string, defaultItem: any) => {
+    onChange({ ...content, [key]: [...(content[key] || []), defaultItem] })
+  }
+  const removeArrayItem = (key: string, index: number) => {
+    const arr = [...(content[key] || [])]
+    arr.splice(index, 1)
+    onChange({ ...content, [key]: arr })
+  }
+
+  const ImageField = ({ keyName, label }: { keyName: string; label: string }) => (
+    <div className="space-y-1">
+      <label className="text-xs font-medium">{label}</label>
+      <div className="flex gap-2">
+        <input className="flex-1 rounded-md border border-input bg-background px-2 py-1 text-xs" value={content[keyName] || ''} onChange={(e) => update(keyName, e.target.value)} />
+        <Button size="sm" variant="outline" onClick={() => onImageSelect((url: string) => update(keyName, url))}><ImagePlus className="h-3 w-3" /></Button>
+      </div>
+      {content[keyName] && <img src={content[keyName]} className="h-16 w-full object-cover rounded mt-1" />}
+    </div>
+  )
+
+  const renderField = (key: string, label: string, inputType: string = 'text', placeholder?: string) => {
+    if (inputType === 'textarea') return (
+      <div key={key} className="space-y-1">
+        <label className="text-xs font-medium">{label}</label>
+        <textarea className="w-full min-h-[60px] rounded-md border border-input bg-background px-2 py-1 text-xs" value={content[key] || ''} onChange={(e) => update(key, e.target.value)} placeholder={placeholder} />
+      </div>
+    )
+    if (inputType === 'select') {
+      const options = placeholder?.split(',') || []
+      return (
+        <div key={key} className="space-y-1">
+          <label className="text-xs font-medium">{label}</label>
+          <select className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs" value={content[key] || ''} onChange={(e) => update(key, e.target.value)}>
+            {options.map((o) => <option key={o} value={o}>{o}</option>)}
+          </select>
+        </div>
+      )
+    }
+    if (inputType === 'number') return (
+      <div key={key} className="space-y-1">
+        <label className="text-xs font-medium">{label}</label>
+        <input className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs" type="number" value={content[key] || ''} onChange={(e) => update(key, e.target.value)} />
+      </div>
+    )
+    if (inputType === 'color') return (
+      <div key={key} className="space-y-1">
+        <label className="text-xs font-medium">{label}</label>
+        <div className="flex gap-2">
+          <input className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs" value={content[key] || ''} onChange={(e) => update(key, e.target.value)} />
+          <input type="color" value={content[key] || '#000000'} onChange={(e) => update(key, e.target.value)} className="w-8 h-8 rounded border" />
+        </div>
+      </div>
+    )
+    return (
+      <div key={key} className="space-y-1">
+        <label className="text-xs font-medium">{label}</label>
+        <input className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs" type="text" value={content[key] || ''} onChange={(e) => update(key, e.target.value)} placeholder={placeholder} />
+      </div>
+    )
+  }
+
+  const commonFields = () => (
+    <>
+      {renderField('align', 'Alignment', 'select', 'left,center,right')}
+      {renderField('fontSize', 'Font Size (px)', 'number')}
+      {renderField('color', 'Text Color', 'color')}
+      {renderField('fontWeight', 'Font Weight', 'select', '400,500,600,700,800')}
+    </>
+  )
+
+  switch (type) {
+    case 'section': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Section Settings</h3>
+        {renderField('padding', 'Padding (px)', 'number')}
+        {renderField('bgColor', 'Background Color', 'color')}
+        {renderField('maxWidth', 'Max Width (px)', 'number')}
+      </div>
+    )
+    case 'container': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Container Settings</h3>
+        {renderField('padding', 'Padding (px)', 'number')}
+        {renderField('bgColor', 'Background Color', 'color')}
+        {renderField('borderRadius', 'Border Radius (px)', 'number')}
+        {renderField('maxWidth', 'Max Width (px)', 'number')}
+      </div>
+    )
+    case 'hero': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Hero Settings</h3>
+        {renderField('title', 'Title')}
+        {renderField('subtitle', 'Subtitle', 'textarea')}
+        {renderField('buttonText', 'Button Text')}
+        <ImageField keyName="bgImage" label="Background Image" />
+        {renderField('bgColor', 'Background Color', 'color')}
+        {renderField('align', 'Alignment', 'select', 'left,center,right')}
+        {renderField('height', 'Height (px)', 'number')}
+        {renderField('overlayOpacity', 'Overlay Opacity (%)', 'number')}
+      </div>
+    )
+    case 'heading': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Heading Settings</h3>
+        {renderField('text', 'Text')}
+        {renderField('level', 'Level', 'select', 'h1,h2,h3,h4')}
+        {commonFields()}
+      </div>
+    )
+    case 'text': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Text Settings</h3>
+        {renderField('text', 'Content', 'textarea')}
+        {renderField('align', 'Alignment', 'select', 'left,center,right')}
+        {renderField('fontSize', 'Font Size (px)', 'number')}
+        {renderField('color', 'Text Color', 'color')}
+        {renderField('lineHeight', 'Line Height', 'text', '1.5')}
+      </div>
+    )
+    case 'button': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Button Settings</h3>
+        {renderField('text', 'Button Text')}
+        {renderField('url', 'Link URL')}
+        {renderField('style', 'Style', 'select', 'primary,secondary,outline')}
+        {renderField('size', 'Size', 'select', 'sm,md,lg')}
+        {renderField('align', 'Alignment', 'select', 'left,center,right')}
+        {renderField('rounded', 'Rounded', 'select', 'none,md,lg,full')}
+      </div>
+    )
+    case 'image': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Image Settings</h3>
+        <ImageField keyName="src" label="Image URL" />
+        {renderField('alt', 'Alt Text')}
+        {renderField('width', 'Width', 'text', '100%')}
+        {renderField('height', 'Height', 'text', 'auto')}
+        {renderField('borderRadius', 'Border Radius (px)', 'number')}
+        {renderField('align', 'Alignment', 'select', 'left,center,right')}
+        {renderField('caption', 'Caption')}
+      </div>
+    )
+    case 'gallery': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Gallery Settings</h3>
+        {renderField('columns', 'Columns', 'select', '1,2,3,4,5')}
+        {renderField('gap', 'Gap (px)', 'number')}
+        {renderField('borderRadius', 'Border Radius (px)', 'number')}
+        <div className="space-y-2">
+          {content.images?.map((img: string, i: number) => (
+            <div key={i} className="flex gap-2">
+              <input className="flex-1 rounded border px-2 py-1 text-xs" value={img} onChange={(e) => {
+                const imgs = [...content.images]
+                imgs[i] = e.target.value
+                update('images', imgs)
+              }} />
+              <Button size="sm" variant="outline" onClick={() => {
+                const imgs = [...content.images]
+                imgs.splice(i, 1)
+                update('images', imgs)
+              }}><X className="h-3 w-3" /></Button>
+            </div>
+          ))}
+          <Button size="sm" variant="outline" onClick={() => {
+            const imgs = [...(content.images || [])]
+            imgs.push('')
+            update('images', imgs)
+          }}><Plus className="h-3 w-3 mr-1" />Add Image</Button>
+        </div>
+      </div>
+    )
+    case 'video': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Video Settings</h3>
+        {renderField('url', 'Video URL')}
+        {renderField('caption', 'Caption')}
+        {renderField('width', 'Width', 'text', '100%')}
+        {renderField('borderRadius', 'Border Radius (px)', 'number')}
+      </div>
+    )
+    case 'features': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Features Settings</h3>
+        {renderField('columns', 'Columns', 'select', '1,2,3,4')}
+        {renderField('align', 'Alignment', 'select', 'left,center,right')}
+        {content.items?.map((item: any, i: number) => (
+          <div key={i} className="space-y-1 p-2 bg-background rounded border">
+            <input className="w-full rounded border px-2 py-1 text-xs" value={item.title} onChange={(e) => updateArray('items', i, 'title', e.target.value)} placeholder="Title" />
+            <input className="w-full rounded border px-2 py-1 text-xs" value={item.description} onChange={(e) => updateArray('items', i, 'description', e.target.value)} placeholder="Description" />
+            <Button size="sm" variant="outline" className="text-destructive" onClick={() => removeArrayItem('items', i)}><Trash2 className="h-3 w-3 mr-1" />Remove</Button>
+          </div>
+        ))}
+        <Button size="sm" variant="outline" onClick={() => addArrayItem('items', { title: 'New Feature', description: '' })}><Plus className="h-3 w-3 mr-1" />Add Feature</Button>
+      </div>
+    )
+    case 'pricing': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Pricing Settings</h3>
+        {renderField('title', 'Title')}
+        {renderField('price', 'Price')}
+        {renderField('period', 'Period')}
+        {renderField('buttonText', 'Button Text')}
+        {renderField('highlighted', 'Highlighted', 'select', 'true,false')}
+        {renderField('align', 'Alignment', 'select', 'left,center,right')}
+        {content.features?.map((f: string, i: number) => (
+          <div key={i} className="flex gap-2">
+            <input className="flex-1 rounded border px-2 py-1 text-xs" value={f} onChange={(e) => {
+              const fs = [...content.features]
+              fs[i] = e.target.value
+              update('features', fs)
+            }} />
+            <Button size="sm" variant="outline" onClick={() => {
+              const fs = [...content.features]
+              fs.splice(i, 1)
+              update('features', fs)
+            }}><X className="h-3 w-3" /></Button>
+          </div>
+        ))}
+        <Button size="sm" variant="outline" onClick={() => {
+          const fs = [...(content.features || [])]
+          fs.push('New Feature')
+          update('features', fs)
+        }}><Plus className="h-3 w-3 mr-1" />Add Feature</Button>
+      </div>
+    )
+    case 'testimonials': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Testimonials Settings</h3>
+        {renderField('columns', 'Columns', 'select', '1,2,3,4')}
+        {renderField('align', 'Alignment', 'select', 'left,center,right')}
+        {content.items?.map((item: any, i: number) => (
+          <div key={i} className="space-y-1 p-2 bg-background rounded border">
+            <input className="w-full rounded border px-2 py-1 text-xs" value={item.name} onChange={(e) => updateArray('items', i, 'name', e.target.value)} placeholder="Name" />
+            <input className="w-full rounded border px-2 py-1 text-xs" value={item.role} onChange={(e) => updateArray('items', i, 'role', e.target.value)} placeholder="Role" />
+            <textarea className="w-full rounded border px-2 py-1 text-xs" value={item.text} onChange={(e) => updateArray('items', i, 'text', e.target.value)} placeholder="Text" />
+            <Button size="sm" variant="outline" className="text-destructive" onClick={() => removeArrayItem('items', i)}><Trash2 className="h-3 w-3 mr-1" />Remove</Button>
+          </div>
+        ))}
+        <Button size="sm" variant="outline" onClick={() => addArrayItem('items', { name: '', role: '', text: '', rating: '5' })}><Plus className="h-3 w-3 mr-1" />Add Testimonial</Button>
+      </div>
+    )
+    case 'faq': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">FAQ Settings</h3>
+        {renderField('align', 'Alignment', 'select', 'left,center')}
+        {content.items?.map((item: any, i: number) => (
+          <div key={i} className="space-y-1 p-2 bg-background rounded border">
+            <input className="w-full rounded border px-2 py-1 text-xs" value={item.question} onChange={(e) => updateArray('items', i, 'question', e.target.value)} placeholder="Question" />
+            <textarea className="w-full rounded border px-2 py-1 text-xs" value={item.answer} onChange={(e) => updateArray('items', i, 'answer', e.target.value)} placeholder="Answer" />
+            <Button size="sm" variant="outline" className="text-destructive" onClick={() => removeArrayItem('items', i)}><Trash2 className="h-3 w-3 mr-1" />Remove</Button>
+          </div>
+        ))}
+        <Button size="sm" variant="outline" onClick={() => addArrayItem('items', { question: '', answer: '' })}><Plus className="h-3 w-3 mr-1" />Add FAQ</Button>
+      </div>
+    )
+    case 'countdown': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Countdown Settings</h3>
+        {renderField('targetDate', 'Target Date (YYYY-MM-DD HH:MM)')}
+        {renderField('label', 'Label')}
+        {renderField('style', 'Style', 'select', 'modern,classic,minimal')}
+        {renderField('align', 'Alignment', 'select', 'left,center,right')}
+      </div>
+    )
+    case 'cta': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">CTA Settings</h3>
+        {renderField('title', 'Title')}
+        {renderField('text', 'Text', 'textarea')}
+        {renderField('buttonText', 'Button Text')}
+        {renderField('align', 'Alignment', 'select', 'left,center,right')}
+        {renderField('bgColor', 'Background Color', 'color')}
+      </div>
+    )
+    case 'divider': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Divider Settings</h3>
+        {renderField('style', 'Style', 'select', 'solid,dashed,dotted')}
+        {renderField('color', 'Color', 'color')}
+        {renderField('height', 'Height (px)', 'number')}
+        {renderField('width', 'Width (%)', 'number')}
+      </div>
+    )
+    case 'spacer': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Spacer Settings</h3>
+        <div className="space-y-1"><label className="text-xs font-medium">Height (px)</label><input className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs" type="number" value={content.height || 40} onChange={(e) => update('height', parseInt(e.target.value))} /></div>
+      </div>
+    )
+    case 'product_image': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Product Image Settings</h3>
+        {renderField('width', 'Width', 'text', '100%')}
+        {renderField('maxWidth', 'Max Width (px)', 'number')}
+        {renderField('borderRadius', 'Border Radius (px)', 'number')}
+        {renderField('align', 'Alignment', 'select', 'left,center,right')}
+      </div>
+    )
+    case 'product_name': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Product Name Settings</h3>
+        {renderField('level', 'Heading Level', 'select', 'h1,h2,h3')}
+        {commonFields()}
+      </div>
+    )
+    case 'product_price': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Product Price Settings</h3>
+        {renderField('align', 'Alignment', 'select', 'left,center,right')}
+        {renderField('showCompare', 'Show Compare Price', 'select', 'true,false')}
+        {renderField('color', 'Price Color', 'color')}
+        {renderField('compareColor', 'Compare Color', 'color')}
+        {renderField('fontSize', 'Font Size (px)', 'number')}
+        {renderField('fontWeight', 'Font Weight', 'select', '400,500,600,700,800')}
+      </div>
+    )
+    case 'product_description': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Product Description Settings</h3>
+        {renderField('align', 'Alignment', 'select', 'left,center,right')}
+        {renderField('color', 'Color', 'color')}
+        {renderField('fontSize', 'Font Size (px)', 'number')}
+        {renderField('maxLines', 'Max Lines (0 = unlimited)', 'number')}
+      </div>
+    )
+    case 'buy_button': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">Buy Button Settings</h3>
+        {renderField('text', 'Button Text')}
+        {renderField('style', 'Style', 'select', 'primary,secondary,outline')}
+        {renderField('size', 'Size', 'select', 'sm,md,lg')}
+        {renderField('align', 'Alignment', 'select', 'left,center,right')}
+        {renderField('rounded', 'Rounded', 'select', 'none,md,lg,full')}
+        {renderField('fullWidth', 'Full Width', 'select', 'true,false')}
+      </div>
+    )
+    case 'html': return (
+      <div className="space-y-3">
+        <h3 className="font-semibold text-sm">HTML Settings</h3>
+        {renderField('code', 'HTML Code', 'textarea')}
+      </div>
+    )
+    default: return <div className="text-sm text-muted-foreground">No settings for this block type.</div>
+  }
+}
+
+/* ==================== MAIN BUILDER PAGE ==================== */
 function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params)
   const router = useRouter()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [product, setProduct] = useState<any>(null)
+  const [product, setProduct] = useState<ProductData | null>(null)
   const [blocks, setBlocks] = useState<BuilderBlock[]>([])
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
   const [published, setPublished] = useState(false)
@@ -141,7 +889,13 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
   const [mediaDialogOpen, setMediaDialogOpen] = useState(false)
   const [mediaImages, setMediaImages] = useState<string[]>([])
   const [onImageSelect, setOnImageSelect] = useState<((url: string) => void) | null>(null)
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
   const supabase = createBrowserClient()
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  )
 
   useEffect(() => {
     const fetchData = async () => {
@@ -152,6 +906,12 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
         const content = productData.builder_content
         if (content && Array.isArray(content) && content.length > 0) {
           setBlocks(content)
+        } else {
+          // Try product_pages table
+          const { data: page } = await supabase.from('product_pages').select('content').eq('product_id', id).single()
+          if (page?.content && Array.isArray(page.content)) {
+            setBlocks(page.content)
+          }
         }
       }
       setLoading(false)
@@ -159,6 +919,7 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
     fetchData()
   }, [id])
 
+  // Auto-save every 5 seconds
   useEffect(() => {
     if (blocks.length === 0) return
     const timer = setTimeout(() => {
@@ -170,7 +931,7 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
   const fetchMedia = useCallback(async () => {
     const { data } = await supabase.storage.from('product-images').list()
     if (data) {
-      const urls = data.filter(f => !f.id.endsWith('/')).map(f => {
+      const urls = data.filter((f: any) => !f.id?.endsWith('/')).map((f: any) => {
         const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(f.name)
         return urlData.publicUrl
       })
@@ -205,17 +966,23 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
     const newBlock: BuilderBlock = { id: crypto.randomUUID(), type: block.type, content: JSON.parse(JSON.stringify(block.content)) }
     const idx = blocks.findIndex(b => b.id === blockId)
     setBlocks(prev => [...prev.slice(0, idx + 1), newBlock, ...prev.slice(idx + 1)])
+    setSelectedBlockId(newBlock.id)
   }
 
-  const moveBlock = (blockId: string, direction: 'up' | 'down') => {
-    const idx = blocks.findIndex(b => b.id === blockId)
-    if (idx === -1) return
-    if (direction === 'up' && idx === 0) return
-    if (direction === 'down' && idx === blocks.length - 1) return
-    const newBlocks = [...blocks]
-    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
-    ;[newBlocks[idx], newBlocks[swapIdx]] = [newBlocks[swapIdx], newBlocks[idx]]
-    setBlocks(newBlocks)
+  const handleDragStart = (event: DragStartEvent) => {
+    setActiveDragId(event.active.id as string)
+  }
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    setActiveDragId(null)
+    if (over && active.id !== over.id) {
+      setBlocks((items) => {
+        const oldIndex = items.findIndex((item) => item.id === active.id)
+        const newIndex = items.findIndex((item) => item.id === over.id)
+        return arrayMove(items, oldIndex, newIndex)
+      })
+    }
   }
 
   const handleSave = async (silent = false) => {
@@ -263,76 +1030,95 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
+      {/* Header */}
       <div className="flex items-center justify-between px-4 py-2 border-b bg-background">
         <div className="flex items-center gap-3">
-          <h1 className="font-semibold">Builder: {product?.name}</h1>
+          <h1 className="font-semibold text-sm">Builder: {product?.name}</h1>
           {published ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Published</span> : <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Draft</span>}
         </div>
         <div className="flex items-center gap-2">
+          {previewMode && (
+            <div className="flex items-center gap-1 border rounded-md px-1">
+              <Button size="sm" variant={previewDevice === 'mobile' ? 'default' : 'ghost'} onClick={() => setPreviewDevice('mobile')} className="h-7 px-2"><Smartphone className="h-4 w-4" /></Button>
+              <Button size="sm" variant={previewDevice === 'tablet' ? 'default' : 'ghost'} onClick={() => setPreviewDevice('tablet')} className="h-7 px-2"><Tablet className="h-4 w-4" /></Button>
+              <Button size="sm" variant={previewDevice === 'desktop' ? 'default' : 'ghost'} onClick={() => setPreviewDevice('desktop')} className="h-7 px-2"><Monitor className="h-4 w-4" /></Button>
+            </div>
+          )}
           <Button size="sm" variant="outline" onClick={() => setTemplateDialogOpen(true)}><Layout className="h-4 w-4 mr-1" />Templates</Button>
           <Button size="sm" variant={previewMode ? 'default' : 'outline'} onClick={() => setPreviewMode(!previewMode)}><Eye className="h-4 w-4 mr-1" />{previewMode ? 'Edit' : 'Preview'}</Button>
-          <Button size="sm" variant="outline" onClick={() => handleSave()} disabled={saving}>{saving && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}<Save className="h-4 w-4 mr-1" />Save Draft</Button>
+          <Button size="sm" variant="outline" onClick={() => handleSave()} disabled={saving}>
+            {saving && !published && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+            <Save className="h-4 w-4 mr-1" />Save Draft
+          </Button>
           {published ? (
             <Button size="sm" variant="outline" onClick={handleUnpublish}><Globe className="h-4 w-4 mr-1" />Unpublish</Button>
           ) : (
-            <Button size="sm" onClick={handlePublish} disabled={saving}>{saving && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}<Globe className="h-4 w-4 mr-1" />Publish</Button>
+            <Button size="sm" onClick={handlePublish} disabled={saving}>
+              {saving && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+              <Globe className="h-4 w-4 mr-1" />Publish
+            </Button>
           )}
         </div>
       </div>
 
       {previewMode ? (
-        <div className="flex-1 overflow-auto bg-white flex justify-center">
-          <div className={`${previewDevice === 'mobile' ? 'w-[375px]' : previewDevice === 'tablet' ? 'w-[768px]' : 'w-full'} transition-all`}>
-            <div className="flex items-center justify-center gap-2 py-2 bg-muted/30 border-b">
-              <Button size="sm" variant={previewDevice === 'mobile' ? 'default' : 'ghost'} onClick={() => setPreviewDevice('mobile')}><Smartphone className="h-4 w-4" /></Button>
-              <Button size="sm" variant={previewDevice === 'tablet' ? 'default' : 'ghost'} onClick={() => setPreviewDevice('tablet')}><Tablet className="h-4 w-4" /></Button>
-              <Button size="sm" variant={previewDevice === 'desktop' ? 'default' : 'ghost'} onClick={() => setPreviewDevice('desktop')}><Monitor className="h-4 w-4" /></Button>
-            </div>
-            <PreviewRenderer blocks={blocks} product={product} />
-          </div>
-        </div>
+        <LivePreviewRenderer blocks={blocks} product={product!} device={previewDevice} />
       ) : (
         <div className="flex-1 flex overflow-hidden">
+          {/* Left Sidebar - Elements */}
           <div className="w-56 border-r bg-muted/30 overflow-y-auto p-3">
-            <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2">Elements</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {BLOCK_TYPES.map((bt) => (
-                <button key={bt.type} onClick={() => addBlock(bt.type)} className="flex flex-col items-center gap-1 p-2 rounded-md bg-background border hover:border-primary transition-colors text-xs">
-                  <bt.icon className="h-4 w-4" />
-                  <span>{bt.label}</span>
-                </button>
-              ))}
-            </div>
+            {BLOCK_CATEGORIES.map((cat) => (
+              <div key={cat.name} className="mb-4">
+                <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-2">{cat.name}</h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {cat.blocks.map((bt) => (
+                    <button key={bt.type} onClick={() => addBlock(bt.type)} className="flex flex-col items-center gap-1 p-2 rounded-md bg-background border hover:border-primary transition-colors text-xs">
+                      <bt.icon className="h-4 w-4" />
+                      <span>{bt.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
 
+          {/* Center - Canvas */}
           <div className="flex-1 overflow-y-auto bg-muted/20 p-6">
-            <div className="max-w-3xl mx-auto space-y-2">
+            <div className="max-w-3xl mx-auto">
               {blocks.length === 0 && (
                 <div className="text-center py-20 text-muted-foreground">
                   <p>Click an element from the sidebar to add it here.</p>
                   <p className="text-sm mt-2">Or <button onClick={() => setTemplateDialogOpen(true)} className="text-primary underline">load a template</button> to get started quickly.</p>
                 </div>
               )}
-              {blocks.map((block, idx) => (
-                <div
-                  key={block.id}
-                  onClick={() => setSelectedBlockId(block.id)}
-                  className={`relative group rounded-lg border-2 transition-all cursor-pointer ${selectedBlockId === block.id ? 'border-primary bg-primary/5' : 'border-transparent hover:border-muted'}`}
-                >
-                  <div className="absolute -right-1 -top-1 opacity-0 group-hover:opacity-100 flex gap-0.5 z-10">
-                    <button onClick={(e) => { e.stopPropagation(); moveBlock(block.id, 'up') }} disabled={idx === 0} className="p-1 bg-background rounded shadow border"><ChevronUp className="h-3 w-3" /></button>
-                    <button onClick={(e) => { e.stopPropagation(); moveBlock(block.id, 'down') }} disabled={idx === blocks.length - 1} className="p-1 bg-background rounded shadow border"><ChevronDown className="h-3 w-3" /></button>
-                    <button onClick={(e) => { e.stopPropagation(); duplicateBlock(block.id) }} className="p-1 bg-background rounded shadow border"><Copy className="h-3 w-3" /></button>
-                    <button onClick={(e) => { e.stopPropagation(); removeBlock(block.id) }} className="p-1 bg-background rounded shadow border text-destructive"><Trash2 className="h-3 w-3" /></button>
+              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+                <SortableContext items={blocks.map(b => b.id)} strategy={verticalListSortingStrategy}>
+                  <div className="space-y-2">
+                    {blocks.map((block, idx) => (
+                      <SortableBlockItem
+                        key={block.id}
+                        block={block}
+                        index={idx}
+                        isSelected={selectedBlockId === block.id}
+                        onClick={() => setSelectedBlockId(block.id)}
+                        onDuplicate={() => duplicateBlock(block.id)}
+                        onDelete={() => removeBlock(block.id)}
+                      />
+                    ))}
                   </div>
-                  <div className="pointer-events-none p-4">
-                    <BlockPreview block={block} />
-                  </div>
-                </div>
-              ))}
+                </SortableContext>
+                <DragOverlay>
+                  {activeDragId ? (
+                    <div className="p-4 bg-white border border-primary rounded-lg shadow-lg opacity-90">
+                      <BlockPreview block={blocks.find(b => b.id === activeDragId)!} />
+                    </div>
+                  ) : null}
+                </DragOverlay>
+              </DndContext>
             </div>
           </div>
 
+          {/* Right Sidebar - Settings */}
           <div className="w-72 border-l bg-muted/30 overflow-y-auto p-3">
             {selectedBlock ? (
               <BlockSettings block={selectedBlock} onChange={(content) => updateBlock(selectedBlock.id, content)} onImageSelect={openMediaPicker} />
@@ -345,295 +1131,39 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
 
       {/* Templates Dialog */}
       <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>Choose a Template</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-2 gap-4 py-4">
-            {TEMPLATES.map((t) => (
-              <button key={t.name} onClick={() => loadTemplate(t.blocks)} className="p-4 rounded-lg border hover:border-primary transition-colors text-left">
-                <h3 className="font-semibold mb-1">{t.name}</h3>
-                <p className="text-xs text-muted-foreground">{t.blocks.length} blocks</p>
-              </button>
-            ))}
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setTemplateDialogOpen(false)} />
+          <div className="relative bg-background rounded-lg shadow-lg max-w-2xl w-full mx-4 p-6 z-50">
+            <DialogHeader><DialogTitle>Choose a Template</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-2 gap-4 py-4">
+              {TEMPLATES.map((t) => (
+                <button key={t.name} onClick={() => loadTemplate(t.blocks)} className="p-4 rounded-lg border hover:border-primary transition-colors text-left">
+                  <h3 className="font-semibold mb-1">{t.name}</h3>
+                  <p className="text-xs text-muted-foreground">{t.blocks.length} blocks</p>
+                </button>
+              ))}
+            </div>
           </div>
-        </DialogContent>
+        </div>
       </Dialog>
 
       {/* Media Dialog */}
       <Dialog open={mediaDialogOpen} onOpenChange={setMediaDialogOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>Media Library</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-4 gap-2 py-4 max-h-80 overflow-y-auto">
-            {mediaImages.map((url, i) => (
-              <button key={i} onClick={() => { onImageSelect?.(url); setMediaDialogOpen(false) }} className="relative aspect-square rounded-lg overflow-hidden border hover:border-primary">
-                <img src={url} className="object-cover w-full h-full" />
-              </button>
-            ))}
-            {mediaImages.length === 0 && <p className="col-span-4 text-center text-muted-foreground text-sm">No images in media library. Upload images via the product edit page.</p>}
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setMediaDialogOpen(false)} />
+          <div className="relative bg-background rounded-lg shadow-lg max-w-2xl w-full mx-4 p-6 z-50">
+            <DialogHeader><DialogTitle>Media Library</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-4 gap-2 py-4 max-h-80 overflow-y-auto">
+              {mediaImages.map((url, i) => (
+                <button key={i} onClick={() => { onImageSelect?.(url); setMediaDialogOpen(false) }} className="relative aspect-square rounded-lg overflow-hidden border hover:border-primary">
+                  <img src={url} className="object-cover w-full h-full" />
+                </button>
+              ))}
+              {mediaImages.length === 0 && <p className="col-span-4 text-center text-muted-foreground text-sm">No images in media library.</p>}
+            </div>
           </div>
-        </DialogContent>
+        </div>
       </Dialog>
-    </div>
-  )
-}
-
-function BlockPreview({ block }: { block: BuilderBlock }) {
-  const { type, content } = block
-  switch (type) {
-    case 'hero': return (
-      <div className={`text-center py-8 ${content.bgImage ? 'bg-cover bg-center' : 'bg-gradient-to-r from-blue-500 to-purple-500'} text-white rounded-lg`} style={content.bgImage ? { backgroundImage: `url(${content.bgImage})` } : {}}>
-        <h2 className="text-2xl font-bold">{content.title}</h2>
-        <p className="mt-2">{content.subtitle}</p>
-        <button className="mt-4 px-4 py-2 bg-white text-black rounded">{content.buttonText}</button>
-      </div>
-    )
-    case 'heading': return <div className={`text-${content.align}`}><h2 className="text-xl font-bold">{content.text}</h2></div>
-    case 'text': return <div className={`text-${content.align} text-sm text-muted-foreground`}><p>{content.text}</p></div>
-    case 'image': return <div className={`text-${content.align}`}>{content.src ? <img src={content.src} alt={content.alt} className="max-h-32 mx-auto rounded" /> : <div className="h-24 bg-muted rounded flex items-center justify-center text-muted-foreground text-xs">Image</div>}{content.caption && <p className="text-xs mt-1">{content.caption}</p>}</div>
-    case 'gallery': return <div className="grid grid-cols-3 gap-2">{content.images?.length ? content.images.map((img: string, i: number) => <img key={i} src={img} className="h-16 w-full object-cover rounded" />) : <div className="col-span-3 h-16 bg-muted rounded flex items-center justify-center text-xs text-muted-foreground">Gallery</div>}</div>
-    case 'video': return <div className="bg-muted rounded h-24 flex items-center justify-center text-xs text-muted-foreground">Video: {content.url || 'No URL'}</div>
-    case 'features': return <div className="grid grid-cols-3 gap-2">{content.items?.map((f: any, i: number) => <div key={i} className="p-2 bg-muted rounded text-xs"><strong>{f.title}</strong><p>{f.description}</p></div>)}</div>
-    case 'pricing': return <div className="p-4 bg-muted rounded text-center"><div className="text-2xl font-bold">{content.price}</div><div className="text-xs">{content.period}</div></div>
-    case 'testimonials': return <div className="p-2 bg-muted rounded text-xs italic">&ldquo;{content.items?.[0]?.text || 'Testimonial'}&rdquo;</div>
-    case 'faq': return <div className="space-y-1">{content.items?.map((q: any, i: number) => <div key={i} className="p-2 bg-muted rounded text-xs"><strong>Q: {q.question}</strong></div>)}</div>
-    case 'countdown': return <div className="p-2 bg-muted rounded text-center text-xs">Countdown: {content.label}</div>
-    case 'cta': return <div className={`text-${content.align} p-4 bg-muted rounded`}><p>{content.text}</p><button className="mt-2 px-3 py-1 bg-primary text-white rounded text-xs">{content.buttonText}</button></div>
-    case 'affiliate_cta': return <div className={`text-${content.align} p-4 bg-green-50 rounded`}><p className="text-xs">{content.text}</p><button className="mt-2 px-3 py-1 bg-green-600 text-white rounded text-xs">{content.buttonText}</button></div>
-    case 'divider': return <hr className={`border-${content.style} my-2`} />
-    case 'spacer': return <div style={{ height: content.height }} className="bg-dashed border border-dashed border-muted" />
-    case 'html': return <div className="text-xs text-muted-foreground">Custom HTML</div>
-    default: return <div className="text-xs text-muted-foreground">Unknown block</div>
-  }
-}
-
-function BlockSettings({ block, onChange, onImageSelect }: { block: BuilderBlock; onChange: (content: Record<string, any>) => void; onImageSelect: (callback: (url: string) => void) => void }) {
-  const { type, content } = block
-
-  const update = (key: string, value: any) => {
-    onChange({ ...content, [key]: value })
-  }
-
-  const ImageField = ({ keyName, label }: { keyName: string; label: string }) => (
-    <div key={keyName} className="space-y-1">
-      <label className="text-xs font-medium">{label}</label>
-      <div className="flex gap-2">
-        <input className="flex-1 rounded-md border border-input bg-background px-2 py-1 text-xs" value={content[keyName] || ''} onChange={(e) => update(keyName, e.target.value)} />
-        <Button size="sm" variant="outline" onClick={() => onImageSelect((url: string) => update(keyName, url))}><ImagePlus className="h-3 w-3" /></Button>
-      </div>
-      {content[keyName] && <img src={content[keyName]} className="h-16 w-full object-cover rounded mt-1" />}
-    </div>
-  )
-
-  const renderField = (key: string, label: string, inputType: string = 'text') => {
-    if (inputType === 'textarea') {
-      return (
-        <div key={key} className="space-y-1">
-          <label className="text-xs font-medium">{label}</label>
-          <textarea className="w-full min-h-[60px] rounded-md border border-input bg-background px-2 py-1 text-xs" value={content[key] || ''} onChange={(e) => update(key, e.target.value)} />
-        </div>
-      )
-    }
-    if (inputType === 'select') {
-      return (
-        <div key={key} className="space-y-1">
-          <label className="text-xs font-medium">{label}</label>
-          <select className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs" value={content[key] || ''} onChange={(e) => update(key, e.target.value)}>
-            <option value="left">Left</option>
-            <option value="center">Center</option>
-            <option value="right">Right</option>
-          </select>
-        </div>
-      )
-    }
-    return (
-      <div key={key} className="space-y-1">
-        <label className="text-xs font-medium">{label}</label>
-        <input className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs" type={inputType} value={content[key] || ''} onChange={(e) => update(key, e.target.value)} />
-      </div>
-    )
-  }
-
-  switch (type) {
-    case 'hero': return (
-      <div className="space-y-3">
-        <h3 className="font-semibold text-sm">Hero Settings</h3>
-        {renderField('title', 'Title')}
-        {renderField('subtitle', 'Subtitle')}
-        {renderField('buttonText', 'Button Text')}
-        <ImageField keyName="bgImage" label="Background Image" />
-        {renderField('align', 'Alignment', 'select')}
-      </div>
-    )
-    case 'heading': return (
-      <div className="space-y-3">
-        <h3 className="font-semibold text-sm">Heading Settings</h3>
-        {renderField('text', 'Text')}
-        <div className="space-y-1"><label className="text-xs font-medium">Level</label><select className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs" value={content.level || 'h2'} onChange={(e) => update('level', e.target.value)}><option>h1</option><option>h2</option><option>h3</option><option>h4</option></select></div>
-        {renderField('align', 'Alignment', 'select')}
-      </div>
-    )
-    case 'text': return (
-      <div className="space-y-3">
-        <h3 className="font-semibold text-sm">Text Settings</h3>
-        {renderField('text', 'Content', 'textarea')}
-        {renderField('align', 'Alignment', 'select')}
-      </div>
-    )
-    case 'image': return (
-      <div className="space-y-3">
-        <h3 className="font-semibold text-sm">Image Settings</h3>
-        <ImageField keyName="src" label="Image" />
-        {renderField('alt', 'Alt Text')}
-        {renderField('caption', 'Caption')}
-        {renderField('align', 'Alignment', 'select')}
-      </div>
-    )
-    case 'video': return (
-      <div className="space-y-3">
-        <h3 className="font-semibold text-sm">Video Settings</h3>
-        {renderField('url', 'Video URL')}
-        {renderField('caption', 'Caption')}
-      </div>
-    )
-    case 'features': return (
-      <div className="space-y-3">
-        <h3 className="font-semibold text-sm">Features Settings</h3>
-        {content.items?.map((item: any, i: number) => (
-          <div key={i} className="space-y-1 p-2 bg-background rounded border">
-            <input className="w-full rounded border px-2 py-1 text-xs" value={item.title} onChange={(e) => { const items = [...content.items]; items[i].title = e.target.value; update('items', items) }} placeholder="Title" />
-            <input className="w-full rounded border px-2 py-1 text-xs" value={item.description} onChange={(e) => { const items = [...content.items]; items[i].description = e.target.value; update('items', items) }} placeholder="Description" />
-          </div>
-        ))}
-        <Button size="sm" variant="outline" onClick={() => update('items', [...content.items, { title: 'New Feature', description: '' }])}><Plus className="h-3 w-3 mr-1" />Add Feature</Button>
-      </div>
-    )
-    case 'pricing': return (
-      <div className="space-y-3">
-        <h3 className="font-semibold text-sm">Pricing Settings</h3>
-        {renderField('price', 'Price')}
-        {renderField('period', 'Period')}
-        {renderField('buttonText', 'Button Text')}
-      </div>
-    )
-    case 'testimonials': return (
-      <div className="space-y-3">
-        <h3 className="font-semibold text-sm">Testimonials Settings</h3>
-        {content.items?.map((item: any, i: number) => (
-          <div key={i} className="space-y-1 p-2 bg-background rounded border">
-            <input className="w-full rounded border px-2 py-1 text-xs" value={item.name} onChange={(e) => { const items = [...content.items]; items[i].name = e.target.value; update('items', items) }} placeholder="Name" />
-            <input className="w-full rounded border px-2 py-1 text-xs" value={item.text} onChange={(e) => { const items = [...content.items]; items[i].text = e.target.value; update('items', items) }} placeholder="Text" />
-          </div>
-        ))}
-        <Button size="sm" variant="outline" onClick={() => update('items', [...content.items, { name: '', text: '', role: '' }])}><Plus className="h-3 w-3 mr-1" />Add Testimonial</Button>
-      </div>
-    )
-    case 'faq': return (
-      <div className="space-y-3">
-        <h3 className="font-semibold text-sm">FAQ Settings</h3>
-        {content.items?.map((item: any, i: number) => (
-          <div key={i} className="space-y-1 p-2 bg-background rounded border">
-            <input className="w-full rounded border px-2 py-1 text-xs" value={item.question} onChange={(e) => { const items = [...content.items]; items[i].question = e.target.value; update('items', items) }} placeholder="Question" />
-            <textarea className="w-full rounded border px-2 py-1 text-xs" value={item.answer} onChange={(e) => { const items = [...content.items]; items[i].answer = e.target.value; update('items', items) }} placeholder="Answer" />
-          </div>
-        ))}
-        <Button size="sm" variant="outline" onClick={() => update('items', [...content.items, { question: '', answer: '' }])}><Plus className="h-3 w-3 mr-1" />Add FAQ</Button>
-      </div>
-    )
-    case 'countdown': return (
-      <div className="space-y-3">
-        <h3 className="font-semibold text-sm">Countdown Settings</h3>
-        {renderField('targetDate', 'Target Date (YYYY-MM-DD)')}
-        {renderField('label', 'Label')}
-      </div>
-    )
-    case 'cta': return (
-      <div className="space-y-3">
-        <h3 className="font-semibold text-sm">CTA Settings</h3>
-        {renderField('text', 'Text', 'textarea')}
-        {renderField('buttonText', 'Button Text')}
-        {renderField('align', 'Alignment', 'select')}
-      </div>
-    )
-    case 'affiliate_cta': return (
-      <div className="space-y-3">
-        <h3 className="font-semibold text-sm">Affiliate CTA Settings</h3>
-        {renderField('text', 'Text', 'textarea')}
-        {renderField('buttonText', 'Button Text')}
-        {renderField('align', 'Alignment', 'select')}
-      </div>
-    )
-    case 'divider': return (
-      <div className="space-y-3">
-        <h3 className="font-semibold text-sm">Divider Settings</h3>
-        <div className="space-y-1"><label className="text-xs font-medium">Style</label><select className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs" value={content.style || 'solid'} onChange={(e) => update('style', e.target.value)}><option value="solid">Solid</option><option value="dashed">Dashed</option><option value="dotted">Dotted</option></select></div>
-      </div>
-    )
-    case 'spacer': return (
-      <div className="space-y-3">
-        <h3 className="font-semibold text-sm">Spacer Settings</h3>
-        <div className="space-y-1"><label className="text-xs font-medium">Height (px)</label><input className="w-full rounded-md border border-input bg-background px-2 py-1 text-xs" type="number" value={content.height || 40} onChange={(e) => update('height', parseInt(e.target.value))} /></div>
-      </div>
-    )
-    case 'html': return (
-      <div className="space-y-3">
-        <h3 className="font-semibold text-sm">HTML Settings</h3>
-        {renderField('code', 'HTML Code', 'textarea')}
-      </div>
-    )
-    default: return <div className="text-sm text-muted-foreground">No settings for this block type.</div>
-  }
-}
-
-function PreviewRenderer({ blocks, product }: { blocks: BuilderBlock[]; product: any }) {
-  const getCtaUrl = () => {
-    if (!product) return '#'
-    switch (product.cta_type) {
-      case 'whatsapp': return product.whatsapp_number ? `https://wa.me/${product.whatsapp_number}` : '#'
-      case 'external_link': return product.external_url || '#'
-      case 'order_form': return '#'
-      default: return `/checkout?product=${product.slug}`
-    }
-  }
-
-  const getCtaLabel = () => {
-    if (!product) return 'Buy Now'
-    switch (product.cta_type) {
-      case 'whatsapp': return 'Chat on WhatsApp'
-      case 'external_link': return 'Visit Link'
-      case 'order_form': return 'Order Now'
-      default: return 'Buy Now'
-    }
-  }
-
-  return (
-    <div className="max-w-4xl mx-auto py-8 space-y-0">
-      {blocks.map((block) => {
-        const { type, content } = block
-        switch (type) {
-          case 'hero': return (
-            <section key={block.id} className={`py-20 px-4 text-center ${content.bgImage ? 'bg-cover bg-center' : 'bg-gradient-to-br from-slate-900 to-slate-800'} text-white`} style={content.bgImage ? { backgroundImage: `url(${content.bgImage})` } : {}}>
-              <h1 className="text-4xl md:text-5xl font-bold mb-4">{content.title}</h1>
-              <p className="text-lg text-white/80 mb-8 max-w-xl mx-auto">{content.subtitle}</p>
-              <a href={getCtaUrl()} className="inline-block px-6 py-3 bg-white text-slate-900 rounded-lg font-semibold hover:bg-white/90 transition-colors">{content.buttonText || getCtaLabel()}</a>
-            </section>
-          )
-          case 'heading': return <div key={block.id} className={`py-6 px-4 text-${content.align}`}>{content.level === 'h1' ? <h1 className="text-3xl font-bold">{content.text}</h1> : content.level === 'h3' ? <h3 className="text-xl font-bold">{content.text}</h3> : <h2 className="text-2xl font-bold">{content.text}</h2>}</div>
-          case 'text': return <div key={block.id} className={`py-4 px-4 text-${content.align} text-muted-foreground leading-relaxed`}><p>{content.text}</p></div>
-          case 'image': return <div key={block.id} className={`py-4 px-4 text-${content.align}`}>{content.src && <img src={content.src} alt={content.alt} className="max-w-full rounded-lg mx-auto" />}{content.caption && <p className="text-sm text-muted-foreground mt-2">{content.caption}</p>}</div>
-          case 'gallery': return <div key={block.id} className="py-4 px-4 grid grid-cols-2 md:grid-cols-3 gap-4">{content.images?.map((img: string, i: number) => <img key={i} src={img} className="rounded-lg object-cover aspect-square" />)}</div>
-          case 'video': return <div key={block.id} className="py-4 px-4">{content.url && <div className="aspect-video bg-muted rounded-lg flex items-center justify-center"><p className="text-muted-foreground">Video: {content.url}</p></div>}{content.caption && <p className="text-sm text-muted-foreground mt-2">{content.caption}</p>}</div>
-          case 'features': return <div key={block.id} className="py-8 px-4"><div className="grid grid-cols-1 md:grid-cols-3 gap-6">{content.items?.map((f: any, i: number) => <div key={i} className="p-6 bg-muted/50 rounded-xl"><h3 className="font-semibold mb-2">{f.title}</h3><p className="text-sm text-muted-foreground">{f.description}</p></div>)}</div></div>
-          case 'pricing': return <div key={block.id} className="py-8 px-4"><div className="max-w-sm mx-auto p-8 bg-muted/50 rounded-2xl text-center"><div className="text-4xl font-bold mb-1">{content.price}</div><div className="text-sm text-muted-foreground mb-6">{content.period}</div><ul className="space-y-2 mb-6 text-sm">{content.features?.map((f: string, i: number) => <li key={i} className="flex items-center gap-2 justify-center"><Star className="h-3 w-3 text-primary" />{f}</li>)}</ul><a href={getCtaUrl()} className="inline-block w-full py-3 bg-primary text-primary-foreground rounded-lg font-semibold">{content.buttonText || getCtaLabel()}</a></div></div>
-          case 'testimonials': return <div key={block.id} className="py-8 px-4"><div className="grid grid-cols-1 md:grid-cols-2 gap-6">{content.items?.map((t: any, i: number) => <div key={i} className="p-6 bg-muted/50 rounded-xl"><p className="italic text-muted-foreground mb-4">&ldquo;{t.text}&rdquo;</p><div className="flex items-center gap-3"><div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center"><span className="font-semibold text-sm">{t.name?.[0]}</span></div><div><div className="font-medium text-sm">{t.name}</div><div className="text-xs text-muted-foreground">{t.role}</div></div></div></div>)}</div></div>
-          case 'faq': return <div key={block.id} className="py-8 px-4 max-w-2xl mx-auto"><div className="space-y-4">{content.items?.map((q: any, i: number) => <div key={i} className="p-4 bg-muted/50 rounded-xl"><h4 className="font-semibold mb-2">{q.question}</h4><p className="text-sm text-muted-foreground">{q.answer}</p></div>)}</div></div>
-          case 'countdown': return <div key={block.id} className="py-8 px-4 text-center"><p className="text-muted-foreground mb-2">{content.label}</p><div className="text-3xl font-bold">{content.targetDate || 'No date set'}</div></div>
-          case 'cta': return <div key={block.id} className={`py-12 px-4 text-${content.align} bg-muted/30`}><p className="text-xl mb-4">{content.text}</p><a href={getCtaUrl()} className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold">{content.buttonText || getCtaLabel()}</a></div>
-          case 'affiliate_cta': return <div key={block.id} className={`py-12 px-4 text-${content.align} bg-green-50`}><p className="text-xl mb-4 text-green-800">{content.text}</p><button className="px-6 py-3 bg-green-600 text-white rounded-lg font-semibold">{content.buttonText}</button></div>
-          case 'divider': return <div key={block.id} className="py-4 px-4"><hr className={`border-${content.style}`} /></div>
-          case 'spacer': return <div key={block.id} style={{ height: content.height }} />
-          case 'html': return <div key={block.id} className="py-4 px-4" dangerouslySetInnerHTML={{ __html: content.code }} />
-          default: return null
-        }
-      })}
     </div>
   )
 }
