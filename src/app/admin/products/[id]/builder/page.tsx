@@ -1,16 +1,18 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
+import { useState, useEffect, Suspense, useCallback } from 'react'
 import { useRouter, use } from 'next/navigation'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { toast } from 'sonner'
 import {
-  Loader2, Eye, Save, Globe, GlobeOff, Plus, Trash2, Copy,
+  Loader2, Eye, Save, Globe, Plus, Trash2, Copy,
   ChevronUp, ChevronDown, Type, Image as ImageIcon, Video,
-  Star, Clock, HelpCircle, ShoppingCart, Phone, Link2,
-  FileText, Layout, Separator as SepIcon, MoveVertical, Code
+  Star, Clock, HelpCircle, ShoppingCart, Link2,
+  FileText, Layout, MoveVertical, Code,
+  Smartphone, Tablet, Monitor, ImagePlus, X, Check
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 interface BuilderBlock {
   id: string
@@ -35,6 +37,71 @@ const BLOCK_TYPES = [
   { type: 'divider', label: 'Divider', icon: SepIcon },
   { type: 'spacer', label: 'Spacer', icon: MoveVertical },
   { type: 'html', label: 'Custom HTML', icon: Code },
+]
+
+const TEMPLATES: { name: string; blocks: BuilderBlock[] }[] = [
+  {
+    name: 'Product Sales Page',
+    blocks: [
+      { id: 't1', type: 'hero', content: { title: 'Your Amazing Product', subtitle: 'The complete solution that transforms how you work', buttonText: 'Get Started Now', bgImage: '', align: 'center' } },
+      { id: 't2', type: 'features', content: { items: [{ title: 'Easy Setup', description: 'Get up and running in minutes with our intuitive setup wizard' }, { title: 'Powerful Features', description: 'Unlock advanced capabilities with our comprehensive feature set' }, { title: '24/7 Support', description: 'Our team is always here to help you succeed' }] } },
+      { id: 't3', type: 'pricing', content: { price: '$49', period: 'one-time', features: ['Full Access', 'Lifetime Updates', 'Priority Support', 'Commercial License'], buttonText: 'Buy Now' } },
+      { id: 't4', type: 'testimonials', content: { items: [{ name: 'Sarah Johnson', role: 'Designer', text: 'This product completely changed my workflow. Highly recommended!' }, { name: 'Mike Chen', role: 'Developer', text: 'Best investment I made this year. The features are incredible.' }] } },
+      { id: 't5', type: 'faq', content: { items: [{ question: 'What is included?', answer: 'Everything you see in the feature list plus lifetime updates.' }, { question: 'Is there a refund policy?', answer: 'Yes, we offer a 30-day money-back guarantee.' }] } },
+      { id: 't6', type: 'cta', content: { text: 'Ready to transform your business?', buttonText: 'Get Started Today', align: 'center' } },
+    ]
+  },
+  {
+    name: 'SaaS Product',
+    blocks: [
+      { id: 's1', type: 'hero', content: { title: 'Scale Your Business', subtitle: 'Cloud-based platform for modern teams', buttonText: 'Start Free Trial', bgImage: '', align: 'center' } },
+      { id: 's2', type: 'features', content: { items: [{ title: 'Cloud Sync', description: 'Real-time synchronization across all devices' }, { title: 'Team Collaboration', description: 'Work together seamlessly with built-in tools' }, { title: 'Analytics Dashboard', description: 'Track performance with detailed insights' }] } },
+      { id: 's3', type: 'pricing', content: { price: '$29', period: '/month', features: ['Unlimited Users', 'API Access', 'Custom Integrations', 'Dedicated Support'], buttonText: 'Start Trial' } },
+      { id: 's4', type: 'testimonials', content: { items: [{ name: 'Alex Rivera', role: 'CTO', text: 'Reduced our operational costs by 40% in the first month.' }] } },
+      { id: 's5', type: 'cta', content: { text: 'Join 10,000+ teams already using our platform', buttonText: 'Get Started Free', align: 'center' } },
+    ]
+  },
+  {
+    name: 'Course Landing Page',
+    blocks: [
+      { id: 'c1', type: 'hero', content: { title: 'Master Digital Marketing', subtitle: 'Learn from industry experts and grow your business', buttonText: 'Enroll Now', bgImage: '', align: 'center' } },
+      { id: 'c2', type: 'features', content: { items: [{ title: '50+ Video Lessons', description: 'Comprehensive curriculum covering all aspects' }, { title: 'Downloadable Resources', description: 'Templates, checklists, and guides included' }, { title: 'Certificate', description: 'Earn a verified certificate upon completion' }] } },
+      { id: 'c3', type: 'pricing', content: { price: '$199', period: 'one-time', features: ['Lifetime Access', 'All Modules', 'Community Access', 'Certificate'], buttonText: 'Enroll Now' } },
+      { id: 'c4', type: 'testimonials', content: { items: [{ name: 'Emily Davis', role: 'Student', text: 'This course paid for itself within the first week!' }] } },
+      { id: 'c5', type: 'faq', content: { items: [{ question: 'How long do I have access?', answer: 'Lifetime access to all course materials and updates.' }, { question: 'Is there a community?', answer: 'Yes, you get access to our private community forum.' }] } },
+      { id: 'c6', type: 'cta', content: { text: 'Start your learning journey today', buttonText: 'Enroll Now', align: 'center' } },
+    ]
+  },
+  {
+    name: 'Ebook Landing Page',
+    blocks: [
+      { id: 'e1', type: 'hero', content: { title: 'The Ultimate Guide', subtitle: 'Everything you need to know in one comprehensive ebook', buttonText: 'Get Your Copy', bgImage: '', align: 'center' } },
+      { id: 'e2', type: 'features', content: { items: [{ title: '300+ Pages', description: 'In-depth coverage of every topic' }, { title: 'Actionable Strategies', description: 'Step-by-step implementation guides' }, { title: 'Bonus Templates', description: 'Ready-to-use templates and frameworks' }] } },
+      { id: 'e3', type: 'pricing', content: { price: '$19', period: 'one-time', features: ['PDF + EPUB', 'Bonus Materials', 'Free Updates', 'Money Back Guarantee'], buttonText: 'Buy Now' } },
+      { id: 'e4', type: 'testimonials', content: { items: [{ name: 'David Kim', role: 'Reader', text: 'Best ebook I have read this year. Practical and actionable.' }] } },
+      { id: 'e5', type: 'cta', content: { text: 'Get instant access to your copy', buttonText: 'Buy Now', align: 'center' } },
+    ]
+  },
+  {
+    name: 'AI Tool Landing Page',
+    blocks: [
+      { id: 'a1', type: 'hero', content: { title: 'AI-Powered Creativity', subtitle: 'Generate stunning content in seconds with AI', buttonText: 'Try Free', bgImage: '', align: 'center' } },
+      { id: 'a2', type: 'features', content: { items: [{ title: 'AI Writer', description: 'Generate blog posts, emails, and more instantly' }, { title: 'AI Images', description: 'Create unique images from text descriptions' }, { title: 'AI Code', description: 'Write and debug code with AI assistance' }] } },
+      { id: 'a3', type: 'pricing', content: { price: '$39', period: '/month', features: ['Unlimited Generations', 'All AI Models', 'Priority Processing', 'API Access'], buttonText: 'Start Free Trial' } },
+      { id: 'a4', type: 'testimonials', content: { items: [{ name: 'Lisa Park', role: 'Content Creator', text: 'This AI tool 10x my content output. Absolutely game-changing.' }] } },
+      { id: 'a5', type: 'cta', content: { text: 'Join the AI revolution today', buttonText: 'Try For Free', align: 'center' } },
+    ]
+  },
+  {
+    name: 'Affiliate Product Page',
+    blocks: [
+      { id: 'af1', type: 'hero', content: { title: 'Earn While You Share', subtitle: 'Promote products you love and earn commissions', buttonText: 'Join Now', bgImage: '', align: 'center' } },
+      { id: 'af2', type: 'features', content: { items: [{ title: 'High Commissions', description: 'Earn up to 50% on every sale you refer' }, { title: 'Real-time Tracking', description: 'Monitor your earnings with live analytics' }, { title: 'Instant Payouts', description: 'Get paid directly to your account' }] } },
+      { id: 'af3', type: 'pricing', content: { price: 'Free', period: 'to join', features: ['No Setup Fee', 'Marketing Materials', 'Dedicated Manager', 'Monthly Bonuses'], buttonText: 'Join Affiliate Program' } },
+      { id: 'af4', type: 'affiliate_cta', content: { text: 'Start earning passive income by promoting products you believe in', buttonText: 'Become an Affiliate', align: 'center' } },
+      { id: 'af5', type: 'testimonials', content: { items: [{ name: 'James Wilson', role: 'Affiliate Partner', text: 'Made my first $1000 in the first month. The support is amazing.' }] } },
+    ]
+  }
 ]
 
 function getDefaultContent(type: string): Record<string, any> {
@@ -69,6 +136,11 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null)
   const [published, setPublished] = useState(false)
   const [previewMode, setPreviewMode] = useState(false)
+  const [previewDevice, setPreviewDevice] = useState<'desktop' | 'tablet' | 'mobile'>('desktop')
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false)
+  const [mediaDialogOpen, setMediaDialogOpen] = useState(false)
+  const [mediaImages, setMediaImages] = useState<string[]>([])
+  const [onImageSelect, setOnImageSelect] = useState<((url: string) => void) | null>(null)
   const supabase = createBrowserClient()
 
   useEffect(() => {
@@ -94,6 +166,23 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
     }, 5000)
     return () => clearTimeout(timer)
   }, [blocks])
+
+  const fetchMedia = useCallback(async () => {
+    const { data } = await supabase.storage.from('product-images').list()
+    if (data) {
+      const urls = data.filter(f => !f.id.endsWith('/')).map(f => {
+        const { data: urlData } = supabase.storage.from('product-images').getPublicUrl(f.name)
+        return urlData.publicUrl
+      })
+      setMediaImages(urls)
+    }
+  }, [supabase])
+
+  const openMediaPicker = (callback: (url: string) => void) => {
+    setOnImageSelect(() => callback)
+    setMediaDialogOpen(true)
+    fetchMedia()
+  }
 
   const addBlock = (type: string) => {
     const newBlock: BuilderBlock = { id: crypto.randomUUID(), type, content: getDefaultContent(type) }
@@ -161,6 +250,13 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
     else { toast.success('Unpublished'); setPublished(false) }
   }
 
+  const loadTemplate = (templateBlocks: BuilderBlock[]) => {
+    const blocksWithNewIds = templateBlocks.map(b => ({ ...b, id: crypto.randomUUID() }))
+    setBlocks(blocksWithNewIds)
+    setTemplateDialogOpen(false)
+    toast.success('Template loaded')
+  }
+
   const selectedBlock = blocks.find(b => b.id === selectedBlockId)
 
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin" /></div>
@@ -173,10 +269,11 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
           {published ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">Published</span> : <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">Draft</span>}
         </div>
         <div className="flex items-center gap-2">
+          <Button size="sm" variant="outline" onClick={() => setTemplateDialogOpen(true)}><Layout className="h-4 w-4 mr-1" />Templates</Button>
           <Button size="sm" variant={previewMode ? 'default' : 'outline'} onClick={() => setPreviewMode(!previewMode)}><Eye className="h-4 w-4 mr-1" />{previewMode ? 'Edit' : 'Preview'}</Button>
           <Button size="sm" variant="outline" onClick={() => handleSave()} disabled={saving}>{saving && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}<Save className="h-4 w-4 mr-1" />Save Draft</Button>
           {published ? (
-            <Button size="sm" variant="outline" onClick={handleUnpublish}><GlobeOff className="h-4 w-4 mr-1" />Unpublish</Button>
+            <Button size="sm" variant="outline" onClick={handleUnpublish}><Globe className="h-4 w-4 mr-1" />Unpublish</Button>
           ) : (
             <Button size="sm" onClick={handlePublish} disabled={saving}>{saving && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}<Globe className="h-4 w-4 mr-1" />Publish</Button>
           )}
@@ -184,8 +281,15 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
       </div>
 
       {previewMode ? (
-        <div className="flex-1 overflow-auto bg-white">
-          <PreviewRenderer blocks={blocks} product={product} />
+        <div className="flex-1 overflow-auto bg-white flex justify-center">
+          <div className={`${previewDevice === 'mobile' ? 'w-[375px]' : previewDevice === 'tablet' ? 'w-[768px]' : 'w-full'} transition-all`}>
+            <div className="flex items-center justify-center gap-2 py-2 bg-muted/30 border-b">
+              <Button size="sm" variant={previewDevice === 'mobile' ? 'default' : 'ghost'} onClick={() => setPreviewDevice('mobile')}><Smartphone className="h-4 w-4" /></Button>
+              <Button size="sm" variant={previewDevice === 'tablet' ? 'default' : 'ghost'} onClick={() => setPreviewDevice('tablet')}><Tablet className="h-4 w-4" /></Button>
+              <Button size="sm" variant={previewDevice === 'desktop' ? 'default' : 'ghost'} onClick={() => setPreviewDevice('desktop')}><Monitor className="h-4 w-4" /></Button>
+            </div>
+            <PreviewRenderer blocks={blocks} product={product} />
+          </div>
         </div>
       ) : (
         <div className="flex-1 flex overflow-hidden">
@@ -206,6 +310,7 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
               {blocks.length === 0 && (
                 <div className="text-center py-20 text-muted-foreground">
                   <p>Click an element from the sidebar to add it here.</p>
+                  <p className="text-sm mt-2">Or <button onClick={() => setTemplateDialogOpen(true)} className="text-primary underline">load a template</button> to get started quickly.</p>
                 </div>
               )}
               {blocks.map((block, idx) => (
@@ -230,13 +335,43 @@ function BuilderPage({ params }: { params: Promise<{ id: string }> }) {
 
           <div className="w-72 border-l bg-muted/30 overflow-y-auto p-3">
             {selectedBlock ? (
-              <BlockSettings block={selectedBlock} onChange={(content) => updateBlock(selectedBlock.id, content)} />
+              <BlockSettings block={selectedBlock} onChange={(content) => updateBlock(selectedBlock.id, content)} onImageSelect={openMediaPicker} />
             ) : (
               <div className="text-sm text-muted-foreground text-center py-8">Select a block to edit its settings.</div>
             )}
           </div>
         </div>
       )}
+
+      {/* Templates Dialog */}
+      <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Choose a Template</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            {TEMPLATES.map((t) => (
+              <button key={t.name} onClick={() => loadTemplate(t.blocks)} className="p-4 rounded-lg border hover:border-primary transition-colors text-left">
+                <h3 className="font-semibold mb-1">{t.name}</h3>
+                <p className="text-xs text-muted-foreground">{t.blocks.length} blocks</p>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Media Dialog */}
+      <Dialog open={mediaDialogOpen} onOpenChange={setMediaDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Media Library</DialogTitle></DialogHeader>
+          <div className="grid grid-cols-4 gap-2 py-4 max-h-80 overflow-y-auto">
+            {mediaImages.map((url, i) => (
+              <button key={i} onClick={() => { onImageSelect?.(url); setMediaDialogOpen(false) }} className="relative aspect-square rounded-lg overflow-hidden border hover:border-primary">
+                <img src={url} className="object-cover w-full h-full" />
+              </button>
+            ))}
+            {mediaImages.length === 0 && <p className="col-span-4 text-center text-muted-foreground text-sm">No images in media library. Upload images via the product edit page.</p>}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -270,12 +405,23 @@ function BlockPreview({ block }: { block: BuilderBlock }) {
   }
 }
 
-function BlockSettings({ block, onChange }: { block: BuilderBlock; onChange: (content: Record<string, any>) => void }) {
+function BlockSettings({ block, onChange, onImageSelect }: { block: BuilderBlock; onChange: (content: Record<string, any>) => void; onImageSelect: (callback: (url: string) => void) => void }) {
   const { type, content } = block
 
   const update = (key: string, value: any) => {
     onChange({ ...content, [key]: value })
   }
+
+  const ImageField = ({ keyName, label }: { keyName: string; label: string }) => (
+    <div key={keyName} className="space-y-1">
+      <label className="text-xs font-medium">{label}</label>
+      <div className="flex gap-2">
+        <input className="flex-1 rounded-md border border-input bg-background px-2 py-1 text-xs" value={content[keyName] || ''} onChange={(e) => update(keyName, e.target.value)} />
+        <Button size="sm" variant="outline" onClick={() => onImageSelect((url: string) => update(keyName, url))}><ImagePlus className="h-3 w-3" /></Button>
+      </div>
+      {content[keyName] && <img src={content[keyName]} className="h-16 w-full object-cover rounded mt-1" />}
+    </div>
+  )
 
   const renderField = (key: string, label: string, inputType: string = 'text') => {
     if (inputType === 'textarea') {
@@ -313,7 +459,7 @@ function BlockSettings({ block, onChange }: { block: BuilderBlock; onChange: (co
         {renderField('title', 'Title')}
         {renderField('subtitle', 'Subtitle')}
         {renderField('buttonText', 'Button Text')}
-        {renderField('bgImage', 'Background Image URL')}
+        <ImageField keyName="bgImage" label="Background Image" />
         {renderField('align', 'Alignment', 'select')}
       </div>
     )
@@ -335,7 +481,7 @@ function BlockSettings({ block, onChange }: { block: BuilderBlock; onChange: (co
     case 'image': return (
       <div className="space-y-3">
         <h3 className="font-semibold text-sm">Image Settings</h3>
-        {renderField('src', 'Image URL')}
+        <ImageField keyName="src" label="Image" />
         {renderField('alt', 'Alt Text')}
         {renderField('caption', 'Caption')}
         {renderField('align', 'Alignment', 'select')}

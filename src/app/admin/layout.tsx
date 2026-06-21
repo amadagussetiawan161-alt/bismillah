@@ -5,7 +5,7 @@ import { redirect, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Loader2, LayoutDashboard, Users, Package, FolderOpen, ShoppingCart, CreditCard, Key, Users2, BarChart3, Activity, Settings, LogOut, Menu, X } from 'lucide-react'
+import { Loader2, LayoutDashboard, Users, Package, FolderOpen, ShoppingCart, CreditCard, Key, Users2, BarChart3, Activity, Settings, LogOut, Menu, X, FileText } from 'lucide-react'
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
@@ -44,8 +44,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { icon: CreditCard, label: 'Payments', href: '/admin/payments' },
     { icon: Key, label: 'Licenses', href: '/admin/licenses' },
     { icon: Users2, label: 'Affiliates', href: '/admin/affiliates' },
-    { icon: BarChart3, label: 'Reports', href: '/admin/reports' },
+    { icon: BarChart3, label: 'Analytics', href: '/admin/analytics' },
     { icon: Activity, label: 'Activity Logs', href: '/admin/activity-logs' },
+    { icon: FileText, label: 'Blog', href: '/admin/blog' },
     { icon: Settings, label: 'Site Settings', href: '/admin/settings' },
   ]
 
