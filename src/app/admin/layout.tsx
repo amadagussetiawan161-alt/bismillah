@@ -3,30 +3,13 @@
 import { useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
-import { createBrowserClient } from '@/lib/supabase/client'
+import { createBrowserSupabaseClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import {
-  Loader2, LayoutDashboard, Users, Package, FolderOpen, ShoppingCart,
-  CreditCard, Key, Users2, Settings, LogOut, Menu, X, FileText,
-  Search, Bell, ChevronDown, Calendar, BarChart3, Sparkles
-} from 'lucide-react'
-
-const FOCUS_MODE_PATHS = ['/admin/products/new']
-const FOCUS_MODE_PATTERNS = [
-  /\/admin\/products\/[^/]+\/edit$/,
-  /\/admin\/products\/[^/]+\/builder$/,
-]
-
-function isFocusMode(pathname: string): boolean {
-  return FOCUS_MODE_PATHS.some((p) => pathname === p) ||
-    FOCUS_MODE_PATTERNS.some((pattern) => pattern.test(pathname))
-}
+import { Loader as Loader2, LayoutDashboard, Users, Package, FolderOpen, ShoppingCart, CreditCard, Key, Users as Users2, Settings, LogOut, Menu, X, FileText, Search, Bell, ChevronDown, Calendar, ChartBar as BarChart3, Sparkles } from 'lucide-react'
 
 const menuItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', href: '/admin' },
-  { icon: Users, label: 'Users', href: '/admin/users' },
+  { icon: LayoutDashboard, label: 'Overview', href: '/admin' },
+  { icon: Users, label: 'User Management', href: '/admin/users' },
   { icon: Package, label: 'Products', href: '/admin/products' },
   { icon: FolderOpen, label: 'Categories', href: '/admin/categories' },
   { icon: ShoppingCart, label: 'Orders', href: '/admin/orders' },
@@ -42,13 +25,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<{ id: string; email: string; role: string } | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [profileOpen, setProfileOpen] = useState(false)
-  const [notificationsOpen, setNotificationsOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
-  const supabase = createBrowserClient()
-
-  const focusMode = isFocusMode(pathname)
+  const supabase = createBrowserSupabaseClient()
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -78,16 +57,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     )
   }
 
-  if (focusMode) {
-    return <div className="min-h-screen bg-white">{children}</div>
-  }
-
   const isActive = (href: string) => pathname === href || (href !== '/admin' && pathname.startsWith(href))
   const getGreeting = () => {
     const hour = new Date().getHours()
-    if (hour < 12) return 'Good morning'
-    if (hour < 18) return 'Good afternoon'
-    return 'Good evening'
+    if (hour < 12) return 'Selamat pagi'
+    if (hour < 18) return 'Selamat siang'
+    return 'Selamat malam'
   }
 
   return (
@@ -114,7 +89,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <div className="h-8 w-8 rounded-xl bg-blue-600 flex items-center justify-center">
                 <Sparkles className="h-4 w-4 text-white" />
               </div>
-              <span className="font-semibold text-slate-900">SaaS Admin</span>
+              <span className="font-semibold text-slate-900">Admin Panel</span>
             </Link>
             <button
               onClick={() => setSidebarOpen(false)}
@@ -164,7 +139,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               onClick={handleLogout}
             >
               <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
+              Keluar
             </Button>
           </div>
         </div>
@@ -187,9 +162,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             <div className="hidden sm:flex flex-1 max-w-md">
               <div className="relative w-full">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                <Input
-                  placeholder="Search..."
-                  className="pl-10 h-10 bg-slate-50 border-0 focus:bg-white text-sm"
+                <input
+                  type="text"
+                  placeholder="Cari..."
+                  className="w-full pl-10 h-10 bg-slate-50 rounded-xl border-0 focus:bg-white focus:ring-2 focus:ring-blue-600 text-sm"
                 />
               </div>
             </div>
@@ -197,32 +173,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {/* Right Actions */}
             <div className="flex items-center gap-2 ml-auto">
               {/* Date Range */}
-              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-slate-50 text-sm text-slate-600">
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-50 text-sm text-slate-600">
                 <Calendar className="h-4 w-4" />
-                <span>Last 30 days</span>
+                <span>30 hari terakhir</span>
                 <ChevronDown className="h-4 w-4" />
               </div>
 
               {/* Notifications */}
-              <button
-                onClick={() => setNotificationsOpen(!notificationsOpen)}
-                className="relative p-2 hover:bg-slate-100 rounded-lg transition-colors"
-              >
+              <button className="relative p-2 hover:bg-slate-100 rounded-lg transition-colors">
                 <Bell className="h-5 w-5 text-slate-600" />
                 <span className="absolute top-1.5 right-1.5 h-2 w-2 bg-blue-600 rounded-full" />
-              </button>
-
-              {/* Profile */}
-              <button
-                onClick={() => setProfileOpen(!profileOpen)}
-                className="flex items-center gap-2 p-1.5 hover:bg-slate-100 rounded-lg transition-colors"
-              >
-                <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center">
-                  <span className="text-sm font-medium text-white">
-                    {user?.email?.charAt(0).toUpperCase()}
-                  </span>
-                </div>
-                <ChevronDown className="h-4 w-4 text-slate-400 hidden sm:block" />
               </button>
             </div>
           </div>

@@ -2,13 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { createBrowserClient } from '@/lib/supabase/client'
-import { Loader2, Plus, Edit, Trash2, ImageIcon, ExternalLink, Hammer } from 'lucide-react'
-import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Select } from '@/components/ui/select'
+import { createBrowserSupabaseClient } from '@/lib/supabase/client'
+import { formatDateTime, formatCurrency } from '@/lib/utils'
 import { toast } from 'sonner'
+import { Search, ChevronLeft, ChevronRight, Plus, Loader as Loader2, Package, LocationEdit as Edit, MoveVertical as MoreVertical, Eye, Trash2 } from 'lucide-react'
 
 interface Product {
   id: string
@@ -16,184 +18,220 @@ interface Product {
   slug: string
   price: number
   status: string
-  affiliate_enabled: boolean
-  commission_type: string | null
-  commission_value: number | null
-  image_url: string | null
-  category: { name: string } | null
-}
-interface ProductRow {
-  id: string
-  name: string
-  slug: string
-  price: number
-  status: string
-  affiliate_enabled: boolean
-  commission_type: string | null
-  commission_value: number | null
-  image_url: string | null
-  category: { name: string }[]
+  is_featured: boolean
+  best_seller: boolean
+  created_at: string
+  category_id: string
+  categories: { name: string }[] | null
 }
 
-export default function AdminProductsPage() {
+export default function ProductsManagementPage() {
   const [loading, setLoading] = useState(true)
   const [products, setProducts] = useState<Product[]>([])
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
-  const [productToDelete, setProductToDelete] = useState<Product | null>(null)
-  const [deleting, setDeleting] = useState(false)
-  const supabase = createBrowserClient()
+  const [searchQuery, setSearchQuery] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalProducts, setTotalProducts] = useState(0)
+  const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null)
+
+  const perPage = 10
+  const supabase = createBrowserSupabaseClient()
 
   useEffect(() => {
     fetchProducts()
-  }, [])
+  }, [currentPage, statusFilter, searchQuery])
 
   const fetchProducts = async () => {
     setLoading(true)
-    const { data, error } = await supabase
+    let query = supabase
       .from('products')
-      .select('id, name, slug, price, status, affiliate_enabled, commission_type, commission_value, image_url, category:categories(name)')
-      .order('created_at', { ascending: false })
-    if (error) {
-      toast.error('Failed to load products')
-    } else {
-      const formatted: Product[] = (data as ProductRow[])?.map(row => ({
-        ...row, category: row.category?.[0] || null
-      })) || []
-      setProducts(formatted)
+      .select('id, name, slug, price, status, is_featured, best_seller, created_at, category_id, categories(name)', { count: 'exact' })
+
+    if (statusFilter !== 'all') {
+      query = query.eq('status', statusFilter)
     }
+
+    if (searchQuery) {
+      query = query.ilike('name', `%${searchQuery}%`)
+    }
+
+    const from = (currentPage - 1) * perPage
+    const to = from + perPage - 1
+    const { data, count, error } = await query.order('created_at', { ascending: false }).range(from, to)
+
+    if (error) {
+      toast.error('Gagal memuat data produk')
+      setLoading(false)
+      return
+    }
+
+    setProducts(data || [])
+    setTotalProducts(count || 0)
     setLoading(false)
   }
 
-  const handleDeleteClick = (product: Product) => {
-    setProductToDelete(product)
-    setDeleteDialogOpen(true)
-  }
-
-  const handleConfirmDelete = async () => {
-    if (!productToDelete) return
-    setDeleting(true)
-    const { error } = await supabase.from('products').delete().eq('id', productToDelete.id)
-    if (error) {
-      toast.error('Failed to delete product')
-    } else {
-      toast.success('Product deleted')
-      setProducts(prev => prev.filter(p => p.id !== productToDelete.id))
-    }
-    setDeleting(false)
-    setDeleteDialogOpen(false)
-    setProductToDelete(null)
-  }
+  const totalPages = Math.ceil(totalProducts / perPage)
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case 'active': return <Badge variant="default">Active</Badge>
-      case 'sold_out': return <Badge variant="destructive">Sold Out</Badge>
-      case 'coming_soon': return <Badge variant="secondary">Coming Soon</Badge>
-      default: return <Badge variant="outline">{status}</Badge>
+      case 'active': return <Badge variant="success">Aktif</Badge>
+      case 'draft': return <Badge variant="secondary">Draft</Badge>
+      case 'sold_out': return <Badge variant="error">Habis</Badge>
+      case 'coming_soon': return <Badge variant="warning">Segera</Badge>
+      default: return <Badge variant="secondary">{status}</Badge>
     }
   }
 
-  const getAffiliateDisplay = (product: Product) => {
-    if (!product.affiliate_enabled) return <span className="text-muted-foreground text-sm">OFF</span>
-    if (product.commission_type === 'percentage') return <span className="text-sm">{product.commission_value}%</span>
-    if (product.commission_type === 'fixed') return <span className="text-sm">Rp{product.commission_value?.toLocaleString()}</span>
-    return <span className="text-muted-foreground text-sm">ON</span>
-  }
-
-  if (loading) return (
-    <div className="flex justify-center py-12">
-      <Loader2 className="h-8 w-8 animate-spin" />
-    </div>
-  )
-
   return (
-    <div>
-      <div className="mb-8 flex items-center justify-between">
+    <div className="max-w-7xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Products</h1>
-          <p className="text-muted-foreground">{products.length} products</p>
+          <h1 className="text-2xl font-semibold text-slate-900">Products</h1>
+          <p className="text-slate-500 mt-1">Kelola semua produk</p>
         </div>
-        <Link href="/admin/products/new">
-          <Button><Plus className="h-4 w-4 mr-2" />Add Product</Button>
-        </Link>
+        <Button asChild>
+          <Link href="/admin/products/new">
+            <Plus className="h-4 w-4 mr-2" /> Tambah Produk
+          </Link>
+        </Button>
       </div>
 
+      {/* Filters */}
       <Card>
-        <CardHeader><CardTitle>All Products</CardTitle></CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4">Thumbnail</th>
-                  <th className="text-left py-3 px-4">Name</th>
-                  <th className="text-left py-3 px-4">Category</th>
-                  <th className="text-left py-3 px-4">Price</th>
-                  <th className="text-left py-3 px-4">Status</th>
-                  <th className="text-left py-3 px-4">Affiliate</th>
-                  <th className="text-left py-3 px-4">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {products.map((product) => (
-                  <tr key={product.id} className="border-b hover:bg-muted/50">
-                    <td className="py-3 px-4">
-                      {product.image_url ? (
-                        <img src={product.image_url} alt={product.name} className="w-12 h-12 rounded object-cover" />
-                      ) : (
-                        <div className="w-12 h-12 rounded bg-muted flex items-center justify-center">
-                          <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                      )}
-                    </td>
-                    <td className="py-3 px-4">
-                      <Link href={`/products/${product.slug}`} className="font-medium hover:underline">
-                        {product.name}
-                      </Link>
-                    </td>
-                    <td className="py-3 px-4 text-muted-foreground">{product.category?.name || '-'}</td>
-                    <td className="py-3 px-4 font-semibold">${product.price}</td>
-                    <td className="py-3 px-4">{getStatusBadge(product.status)}</td>
-                    <td className="py-3 px-4">{getAffiliateDisplay(product)}</td>
-                    <td className="py-3 px-4">
-                      <div className="flex gap-2">
-                        <Link href={`/admin/products/${product.id}/edit`}>
-                          <Button size="sm" variant="outline"><Edit className="h-3 w-3 mr-1" />Edit</Button>
-                        </Link>
-                        <Link href={`/admin/products/${product.id}/builder`}>
-                          <Button size="sm" variant="outline"><Hammer className="h-3 w-3 mr-1" />Builder</Button>
-                        </Link>
-                        <Link href={`/products/${product.slug}`} target="_blank">
-                          <Button size="sm" variant="outline"><ExternalLink className="h-3 w-3 mr-1" />Preview</Button>
-                        </Link>
-                        <Button size="sm" variant="outline" className="text-destructive" onClick={() => handleDeleteClick(product)}>
-                          <Trash2 className="h-3 w-3 mr-1" />Delete
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <CardContent className="p-4">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <Input
+                placeholder="Cari produk..."
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value)
+                  setCurrentPage(1)
+                }}
+                className="pl-10"
+              />
+            </div>
+            <div className="w-full sm:w-48">
+              <Select
+                value={statusFilter}
+                onChange={(e) => {
+                  setStatusFilter(e.target.value)
+                  setCurrentPage(1)
+                }}
+              >
+                <option value="all">Semua Status</option>
+                <option value="active">Aktif</option>
+                <option value="draft">Draft</option>
+                <option value="sold_out">Habis</option>
+                <option value="coming_soon">Segera</option>
+              </Select>
+            </div>
           </div>
         </CardContent>
       </Card>
 
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogHeader>
-          <DialogTitle>Delete Product</DialogTitle>
-          <DialogDescription>
-            Are you sure you want to delete <strong>{productToDelete?.name}</strong>? This action cannot be undone.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>Cancel</Button>
-          <Button variant="destructive" onClick={handleConfirmDelete} disabled={deleting}>
-            {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Delete
-          </Button>
-        </DialogFooter>
-      </Dialog>
+      {/* Products Table */}
+      <Card>
+        <CardContent className="p-0">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-slate-200 bg-slate-50">
+                  <th className="text-left py-4 px-6 text-xs font-medium text-slate-500 uppercase">Produk</th>
+                  <th className="text-left py-4 px-6 text-xs font-medium text-slate-500 uppercase">Kategori</th>
+                  <th className="text-left py-4 px-6 text-xs font-medium text-slate-500 uppercase">Harga</th>
+                  <th className="text-left py-4 px-6 text-xs font-medium text-slate-500 uppercase">Status</th>
+                  <th className="text-left py-4 px-6 text-xs font-medium text-slate-500 uppercase">Dibuat</th>
+                  <th className="text-left py-4 px-6 text-xs font-medium text-slate-500 uppercase">Aksi</th>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-12">
+                      <Loader2 className="h-6 w-6 animate-spin text-slate-400 mx-auto" />
+                    </td>
+                  </tr>
+                ) : products.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="text-center py-12 text-slate-500">
+                      <Package className="h-10 w-10 mx-auto mb-2 opacity-30" />
+                      Tidak ada produk
+                    </td>
+                  </tr>
+                ) : (
+                  products.map((product) => (
+                    <tr key={product.id} className="border-b border-slate-100 hover:bg-slate-50">
+                      <td className="py-4 px-6">
+                        <div>
+                          <p className="font-medium text-sm text-slate-900">{product.name}</p>
+                          <p className="text-xs text-slate-500">{product.slug}</p>
+                        </div>
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className="text-sm text-slate-600">
+                          {product.categories?.[0]?.name || '-'}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className="text-sm font-medium text-slate-900">
+                          {formatCurrency(product.price)}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-2">
+                          {getStatusBadge(product.status)}
+                          {product.is_featured && <Badge variant="default">Unggulan</Badge>}
+                          {product.best_seller && <Badge variant="warning">Terlaris</Badge>}
+                        </div>
+                      </td>
+                      <td className="py-4 px-6">
+                        <span className="text-sm text-slate-600">
+                          {formatDateTime(product.created_at)}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
+                        <div className="flex items-center gap-2">
+                          <Button size="sm" variant="outline" asChild>
+                            <Link href={`/admin/products/${product.id}/edit`}>
+                              <Edit className="h-3 w-3" />
+                            </Link>
+                          </Button>
+                          <Button size="sm" variant="outline" asChild>
+                            <Link href={`/admin/products/${product.id}/builder`}>
+                              Builder
+                            </Link>
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200">
+            <p className="text-sm text-slate-500">
+              Menampilkan {((currentPage - 1) * perPage) + 1} - {Math.min(currentPage * perPage, totalProducts)} dari {totalProducts} produk
+            </p>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              <span className="flex items-center px-3 text-sm text-slate-600">
+                {currentPage} / {totalPages || 1}
+              </span>
+              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   )
 }

@@ -3,20 +3,18 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { createBrowserClient } from '@/lib/supabase/client'
-import { useI18n } from '@/lib/i18n'
+import { createBrowserSupabaseClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Menu, X, ShoppingCart, User, LogOut, LayoutDashboard, Package, Globe } from 'lucide-react'
 
 export function Navbar() {
   const pathname = usePathname()
-  const { lang, t, setLang } = useI18n()
   const [user, setUser] = useState<{ id: string; email: string } | null>(null)
   const [cartCount, setCartCount] = useState(0)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [langOpen, setLangOpen] = useState(false)
-  const supabase = createBrowserClient()
+  const supabase = createBrowserSupabaseClient()
 
   useEffect(() => {
     const getUser = async () => {
@@ -28,7 +26,6 @@ export function Navbar() {
       }
     }
     getUser()
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange(() => getUser())
     return () => subscription.unsubscribe()
   }, [])
@@ -39,24 +36,24 @@ export function Navbar() {
   }
 
   const navLinks = [
-    { href: '/', label: t('nav_home', 'navbar') },
-    { href: '/products', label: t('nav_products', 'navbar') },
-    { href: '/categories', label: t('nav_categories', 'navbar') },
-    { href: '/pricing', label: 'Pricing' },
-    { href: '/contact', label: 'Contact' },
+    { href: '/', label: 'Beranda' },
+    { href: '/products', label: 'Produk' },
+    { href: '/categories', label: 'Kategori' },
+    { href: '/pricing', label: 'Harga' },
+    { href: '/contact', label: 'Kontak' },
   ]
 
   const isActive = (href: string) => pathname === href || (href !== '/' && pathname.startsWith(href))
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="sticky top-0 z-50 w-full border-b border-slate-200 bg-white/95 backdrop-blur">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center">
-              <span className="font-bold text-primary-foreground">S</span>
+            <div className="h-8 w-8 rounded-lg bg-blue-600 flex items-center justify-center">
+              <span className="font-bold text-white text-sm">S</span>
             </div>
-            <span className="font-semibold hidden sm:inline">SaaS Platform</span>
+            <span className="font-semibold text-slate-900 hidden sm:inline">SaaS Platform</span>
           </Link>
 
           <nav className="hidden md:flex items-center gap-6">
@@ -64,7 +61,7 @@ export function Navbar() {
               <Link
                 key={link.href}
                 href={link.href}
-                className={`text-sm font-medium transition-colors hover:text-primary ${isActive(link.href) ? 'text-primary' : 'text-muted-foreground'}`}
+                className={`text-sm font-medium transition-colors ${isActive(link.href) ? 'text-blue-600' : 'text-slate-600 hover:text-slate-900'}`}
               >
                 {link.label}
               </Link>
@@ -72,37 +69,10 @@ export function Navbar() {
           </nav>
 
           <div className="flex items-center gap-2">
-            {/* Language Switcher */}
-            <div className="relative">
-              <Button variant="ghost" size="sm" onClick={() => setLangOpen(!langOpen)} className="gap-1">
-                <Globe className="h-4 w-4" />
-                <span className="uppercase text-xs font-medium">{lang}</span>
-              </Button>
-              {langOpen && (
-                <div className="absolute right-0 top-full mt-1 bg-background border rounded-md shadow-lg py-1 z-50 min-w-[100px]">
-                  <button onClick={() => { setLang('en'); setLangOpen(false) }} className={`w-full text-left px-3 py-2 text-sm hover:bg-muted ${lang === 'en' ? 'bg-muted font-medium' : ''}`}>English</button>
-                  <button onClick={() => { setLang('id'); setLangOpen(false) }} className={`w-full text-left px-3 py-2 text-sm hover:bg-muted ${lang === 'id' ? 'bg-muted font-medium' : ''}`}>Indonesia</button>
-                </div>
-              )}
-            </div>
-
             {user ? (
               <>
-                <Link href="/dashboard/cart" className="relative">
-                  <Button variant="ghost" size="icon">
-                    <ShoppingCart className="h-5 w-5" />
-                    {cartCount > 0 && (
-                      <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center text-xs">
-                        {cartCount}
-                      </Badge>
-                    )}
-                  </Button>
-                </Link>
-                <Link href="/dashboard/orders">
-                  <Button variant="ghost" size="icon"><Package className="h-5 w-5" /></Button>
-                </Link>
-                <Link href="/dashboard">
-                  <Button variant="ghost" size="icon"><LayoutDashboard className="h-5 w-5" /></Button>
+                <Link href="/dashboard" className="hidden sm:inline-flex">
+                  <Button variant="ghost" size="sm"><LayoutDashboard className="h-4 w-4 mr-2" />Dashboard</Button>
                 </Link>
                 <Button variant="ghost" size="icon" onClick={handleLogout}>
                   <LogOut className="h-5 w-5" />
@@ -111,10 +81,10 @@ export function Navbar() {
             ) : (
               <>
                 <Link href="/auth/login" className="hidden sm:inline-flex">
-                  <Button variant="ghost" size="sm">{t('nav_login', 'navbar')}</Button>
+                  <Button variant="ghost" size="sm">Masuk</Button>
                 </Link>
                 <Link href="/auth/register">
-                  <Button size="sm">{t('nav_register', 'navbar')}</Button>
+                  <Button size="sm">Daftar</Button>
                 </Link>
               </>
             )}
@@ -125,18 +95,14 @@ export function Navbar() {
         </div>
 
         {mobileOpen && (
-          <nav className="md:hidden py-4 border-t">
+          <nav className="md:hidden py-4 border-t border-slate-200">
             <div className="flex flex-col gap-2">
               {navLinks.map((link) => (
-                <Link key={link.href} href={link.href} onClick={() => setMobileOpen(false)} className={`px-4 py-2 text-sm font-medium rounded-md ${isActive(link.href) ? 'bg-muted text-primary' : 'text-muted-foreground'}`}>
+                <Link key={link.href} href={link.href} onClick={() => setMobileOpen(false)} className={`px-4 py-2 text-sm font-medium rounded-lg ${isActive(link.href) ? 'bg-blue-50 text-blue-600' : 'text-slate-600'}`}>
                   {link.label}
                 </Link>
               ))}
-              {!user && (
-                <>
-                  <Link href="/auth/login" onClick={() => setMobileOpen(false)} className="px-4 py-2 text-sm font-medium text-muted-foreground">{t('nav_login', 'navbar')}</Link>
-                </>
-              )}
+              {!user && <Link href="/auth/login" onClick={() => setMobileOpen(false)} className="px-4 py-2 text-sm font-medium text-slate-600">Masuk</Link>}
             </div>
           </nav>
         )}
