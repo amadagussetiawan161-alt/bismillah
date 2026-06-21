@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { createBrowserClient } from '@/lib/supabase/client'
-import { Loader2, Plus, Edit, Trash2, ImageIcon, Wrench } from 'lucide-react'
+import { Loader2, Plus, Edit, Trash2, ImageIcon } from 'lucide-react'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 
@@ -144,9 +144,6 @@ export default function AdminProductsPage() {
                       <div className="flex gap-2">
                         <Link href={`/admin/products/${product.id}/edit`}>
                           <Button size="sm" variant="outline"><Edit className="h-3 w-3 mr-1" />Edit</Button>
-                        </Link>
-                        <Link href={`/admin/products/${product.id}/builder`}>
-                          <Button size="sm" variant="outline"><Wrench className="h-3 w-3 mr-1" />Builder</Button>
                         </Link>
                         <Button size="sm" variant="outline" className="text-destructive" onClick={() => handleDeleteClick(product)}>
                           <Trash2 className="h-3 w-3 mr-1" />Delete

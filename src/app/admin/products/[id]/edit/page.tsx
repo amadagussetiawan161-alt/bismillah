@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { createBrowserClient } from '@/lib/supabase/client'
 import { uploadProductImage, validateImageFile, deleteProductImage, uploadProductDownload, validateDownloadFile, deleteProductDownload } from '@/lib/supabase/storage'
 import { toast } from 'sonner'
-import { Loader2, Upload, X, Trash2, Wrench } from 'lucide-react'
+import { Loader2, Upload, X, Trash2 } from 'lucide-react'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
 
 interface Category {
@@ -249,10 +249,7 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Edit Product</CardTitle>
-          <div className="flex gap-2">
-            <Button variant="outline" size="sm" onClick={() => router.push(`/admin/products/${id}/builder`)}><Wrench className="h-4 w-4 mr-1" />Builder</Button>
-            <Button variant="destructive" size="sm" onClick={() => setDeleteDialogOpen(true)}><Trash2 className="h-4 w-4 mr-1" />Delete</Button>
-          </div>
+          <Button variant="destructive" size="sm" onClick={() => setDeleteDialogOpen(true)}><Trash2 className="h-4 w-4 mr-1" />Delete</Button>
         </CardHeader>
         <form onSubmit={handleSave}>
           <CardContent className="space-y-4">
@@ -357,7 +354,6 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
                 {(saving || imageUploading || downloadUploading) && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Save Product
               </Button>
-              <Button type="button" variant="outline" onClick={() => router.push(`/admin/products/${id}/builder`)}><Wrench className="h-4 w-4 mr-1" />Open Builder</Button>
               <Button type="button" variant="outline" onClick={() => router.back()}>Cancel</Button>
             </div>
           </CardContent>
