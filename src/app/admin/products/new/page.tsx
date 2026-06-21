@@ -11,6 +11,12 @@ import { createBrowserClient } from '@/lib/supabase/client'
 import { uploadProductImage, validateImageFile, uploadProductDownload, validateDownloadFile } from '@/lib/supabase/storage'
 import { toast } from 'sonner'
 import { Loader2, Upload, X } from 'lucide-react'
+import {
+  VariantEditor,
+  validateVariants,
+  prepareVariantForSave,
+  type Variant,
+} from '@/components/product-variant-editor'
 
 interface Category {
   id: string
@@ -29,6 +35,8 @@ export default function NewProductPage() {
   const [downloadUploading, setDownloadUploading] = useState(false)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const downloadInputRef = useRef<HTMLInputElement>(null)
+  const [variantsEnabled, setVariantsEnabled] = useState(false)
+  const [variants, setVariants] = useState<Variant[]>([])
 
   const [form, setForm] = useState({
     name: '',
@@ -39,9 +47,6 @@ export default function NewProductPage() {
     compare_price: '',
     category_id: '',
     status: 'active' as 'active' | 'sold_out' | 'coming_soon',
-    cta_type: 'buy_now' as 'buy_now' | 'whatsapp' | 'order_form' | 'external_link',
-    whatsapp_number: '',
-    external_url: '',
     download_type: '' as 'file_upload' | 'external_url' | '',
     download_url: '',
     affiliate_enabled: false,
@@ -96,7 +101,23 @@ export default function NewProductPage() {
 
   const validateForm = (): boolean => {
     if (!form.name.trim()) { toast.error('Name is required'); return false }
-    if (!form.price || parseFloat(form.price) <= 0) { toast.error('Price must be greater than 0'); return false }
+
+    // If variants are enabled, validate them
+    if (variantsEnabled) {
+      if (variants.length === 0) {
+        toast.error('At least one variant is required when variants are enabled')
+        return false
+      }
+      const variantError = validateVariants(variants)
+      if (variantError) { toast.error(variantError); return false }
+    } else {
+      // Only require price when variants are not enabled
+      if (!form.price || parseFloat(form.price) <= 0) {
+        toast.error('Price must be greater than 0')
+        return false
+      }
+    }
+
     if (!imageFile && !imagePreview) { toast.error('Image is required for new product'); return false }
     if (form.affiliate_enabled) {
       if (!form.commission_type) { toast.error('Commission type is required'); return false }
@@ -105,7 +126,7 @@ export default function NewProductPage() {
         toast.error('Percentage commission cannot exceed 100%'); return false
       }
     }
-    if (form.license_enabled) {
+    if (form.license_enabled && !variantsEnabled) {
       if (!form.license_type) { toast.error('License type is required'); return false }
       if (!form.license_duration) { toast.error('License duration is required'); return false }
       if (form.license_duration === 'custom' && !form.custom_license_days) {
@@ -143,19 +164,17 @@ export default function NewProductPage() {
       slug,
       description: form.description || null,
       short_description: form.short_description || null,
-      price: parseFloat(form.price),
+      price: variantsEnabled ? 0 : parseFloat(form.price),
       compare_price: form.compare_price ? parseFloat(form.compare_price) : null,
       category_id: form.category_id || null,
       image_url: imageUrl,
       status: form.status,
-      cta_type: form.cta_type,
-      whatsapp_number: form.cta_type === 'whatsapp' ? form.whatsapp_number : null,
-      external_url: form.cta_type === 'external_link' ? form.external_url : null,
       download_type: form.download_type || null,
       download_file: form.download_type === 'file_upload' ? downloadFilePath : null,
       download_url: form.download_type === 'external_url' ? form.download_url : null,
       affiliate_enabled: form.affiliate_enabled,
-      license_enabled: form.license_enabled,
+      license_enabled: form.license_enabled && !variantsEnabled,
+      variants_enabled: variantsEnabled,
     }
 
     if (form.affiliate_enabled) {
@@ -163,7 +182,7 @@ export default function NewProductPage() {
       payload.commission_value = form.commission_value ? parseFloat(form.commission_value) : null
     }
 
-    if (form.license_enabled) {
+    if (form.license_enabled && !variantsEnabled) {
       payload.license_type = form.license_type
       payload.license_duration = form.license_duration
       payload.custom_license_days = form.license_duration === 'custom' ? parseInt(form.custom_license_days) : null
@@ -175,6 +194,17 @@ export default function NewProductPage() {
       toast.error(error.message)
       setLoading(false)
       return
+    }
+
+    // Save variants if enabled
+    if (variantsEnabled && variants.length > 0) {
+      const variantPayloads = variants.map((v, idx) => prepareVariantForSave(v, data.id, idx))
+      const { error: variantError } = await supabase.from('product_variants').insert(variantPayloads)
+      if (variantError) {
+        toast.error('Failed to save variants: ' + variantError.message)
+        setLoading(false)
+        return
+      }
     }
 
     toast.success('Product saved!')
@@ -211,15 +241,28 @@ export default function NewProductPage() {
               <Textarea id="description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="price">Price *</Label>
-                <Input id="price" type="number" step="0.01" min="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="compare_price">Compare Price</Label>
-                <Input id="compare_price" type="number" step="0.01" value={form.compare_price} onChange={(e) => setForm({ ...form, compare_price: e.target.value })} />
-              </div>
+            {/* Price Section - only show when variants are disabled */}
+            <div className="border rounded-lg p-4 space-y-4">
+              <h3 className="font-semibold">Pricing</h3>
+              <VariantEditor
+                variantsEnabled={variantsEnabled}
+                onVariantsEnabledChange={setVariantsEnabled}
+                variants={variants}
+                onVariantsChange={setVariants}
+              />
+
+              {!variantsEnabled && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="price">Price *</Label>
+                    <Input id="price" type="number" step="0.01" min="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="compare_price">Compare Price</Label>
+                    <Input id="compare_price" type="number" step="0.01" value={form.compare_price} onChange={(e) => setForm({ ...form, compare_price: e.target.value })} />
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -252,30 +295,6 @@ export default function NewProductPage() {
                 <option value="coming_soon">Coming Soon</option>
               </select>
             </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="cta_type">CTA Type</Label>
-              <select id="cta_type" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm" value={form.cta_type} onChange={(e) => setForm({ ...form, cta_type: e.target.value as 'buy_now' | 'whatsapp' | 'order_form' | 'external_link' })}>
-                <option value="buy_now">Buy Now</option>
-                <option value="whatsapp">WhatsApp</option>
-                <option value="order_form">Order Form</option>
-                <option value="external_link">External Link</option>
-              </select>
-            </div>
-
-            {form.cta_type === 'whatsapp' && (
-              <div className="space-y-2">
-                <Label htmlFor="whatsapp_number">WhatsApp Number</Label>
-                <Input id="whatsapp_number" value={form.whatsapp_number} onChange={(e) => setForm({ ...form, whatsapp_number: e.target.value })} placeholder="+62..." />
-              </div>
-            )}
-
-            {form.cta_type === 'external_link' && (
-              <div className="space-y-2">
-                <Label htmlFor="external_url">External URL</Label>
-                <Input id="external_url" value={form.external_url} onChange={(e) => setForm({ ...form, external_url: e.target.value })} placeholder="https://..." />
-              </div>
-            )}
 
             <div className="border rounded-lg p-4 space-y-4">
               <h3 className="font-semibold">Digital Delivery</h3>
@@ -334,40 +353,44 @@ export default function NewProductPage() {
               </div>
             )}
 
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="license_enabled" checked={form.license_enabled} onChange={(e) => setForm({ ...form, license_enabled: e.target.checked })} className="h-4 w-4" />
-              <Label htmlFor="license_enabled">License Enabled</Label>
-            </div>
+            {!variantsEnabled && (
+              <>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="license_enabled" checked={form.license_enabled} onChange={(e) => setForm({ ...form, license_enabled: e.target.checked })} className="h-4 w-4" />
+                  <Label htmlFor="license_enabled">License Enabled</Label>
+                </div>
 
-            {form.license_enabled && (
-              <div className="space-y-4 pl-6 border-l-2 border-primary/20">
-                <div className="space-y-2">
-                  <Label htmlFor="license_type">License Type</Label>
-                  <select id="license_type" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm" value={form.license_type} onChange={(e) => setForm({ ...form, license_type: e.target.value as 'manual' | 'auto_generated' })}>
-                    <option value="">Select</option>
-                    <option value="manual">Manual License</option>
-                    <option value="auto_generated">Auto Generated License</option>
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="license_duration">License Duration</Label>
-                  <select id="license_duration" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm" value={form.license_duration} onChange={(e) => setForm({ ...form, license_duration: e.target.value as 'lifetime' | '30_days' | '90_days' | '180_days' | '1_year' | 'custom' | '' })}>
-                    <option value="">Select</option>
-                    <option value="lifetime">Lifetime</option>
-                    <option value="30_days">30 Days</option>
-                    <option value="90_days">90 Days</option>
-                    <option value="180_days">180 Days</option>
-                    <option value="1_year">1 Year</option>
-                    <option value="custom">Custom</option>
-                  </select>
-                </div>
-                {form.license_duration === 'custom' && (
-                  <div className="space-y-2">
-                    <Label htmlFor="custom_license_days">Custom Duration (days)</Label>
-                    <Input id="custom_license_days" type="number" value={form.custom_license_days} onChange={(e) => setForm({ ...form, custom_license_days: e.target.value })} />
+                {form.license_enabled && (
+                  <div className="space-y-4 pl-6 border-l-2 border-primary/20">
+                    <div className="space-y-2">
+                      <Label htmlFor="license_type">License Type</Label>
+                      <select id="license_type" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm" value={form.license_type} onChange={(e) => setForm({ ...form, license_type: e.target.value as 'manual' | 'auto_generated' })}>
+                        <option value="">Select</option>
+                        <option value="manual">Manual License</option>
+                        <option value="auto_generated">Auto Generated License</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="license_duration">License Duration</Label>
+                      <select id="license_duration" className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm" value={form.license_duration} onChange={(e) => setForm({ ...form, license_duration: e.target.value as 'lifetime' | '30_days' | '90_days' | '180_days' | '1_year' | 'custom' | '' })}>
+                        <option value="">Select</option>
+                        <option value="lifetime">Lifetime</option>
+                        <option value="30_days">30 Days</option>
+                        <option value="90_days">90 Days</option>
+                        <option value="180_days">180 Days</option>
+                        <option value="1_year">1 Year</option>
+                        <option value="custom">Custom</option>
+                      </select>
+                    </div>
+                    {form.license_duration === 'custom' && (
+                      <div className="space-y-2">
+                        <Label htmlFor="custom_license_days">Custom Duration (days)</Label>
+                        <Input id="custom_license_days" type="number" value={form.custom_license_days} onChange={(e) => setForm({ ...form, custom_license_days: e.target.value })} />
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
+              </>
             )}
 
             <div className="flex gap-4 pt-4">

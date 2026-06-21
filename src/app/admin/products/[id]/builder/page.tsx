@@ -12,6 +12,7 @@ import {
   ImagePlus, X, Package, DollarSign, ArrowRight, Sparkles, Check
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { ActionConfigEditor, getActionUrl } from '@/components/action-config-editor'
 import { Dialog, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import {
   DndContext,
@@ -114,13 +115,21 @@ const BLOCK_CATEGORIES = [
 
 /* ==================== DEFAULT CONTENT ==================== */
 function getDefaultContent(type: string): Record<string, any> {
+  // Action config for clickable elements
+  const defaultActionConfig = {
+    actionType: '' as '' | 'direct_url' | 'product_purchase',
+    url: '',
+    openInNewTab: false,
+    productId: null as string | null,
+    variantId: null as string | null,
+  }
   switch (type) {
     case 'section': return { padding: '80', bgColor: '#ffffff', maxWidth: '1200' }
     case 'container': return { padding: '40', bgColor: '#f8fafc', borderRadius: '12', maxWidth: '1200' }
     case 'heading': return { text: 'Section Heading', level: 'h2', align: 'center', color: '#0f172a', fontSize: '32', fontWeight: '700' }
     case 'text': return { text: 'Enter your content here...', align: 'left', color: '#475569', fontSize: '16', lineHeight: '1.6' }
-    case 'button': return { text: 'Click Me', url: '', style: 'primary', size: 'md', align: 'center', rounded: 'md' }
-    case 'image': return { src: '', alt: '', width: '100%', height: 'auto', borderRadius: '12', align: 'center', caption: '' }
+    case 'button': return { text: 'Click Me', style: 'primary', size: 'md', align: 'center', rounded: 'md', ...defaultActionConfig }
+    case 'image': return { src: '', alt: '', width: '100%', height: 'auto', borderRadius: '12', align: 'center', caption: '', ...defaultActionConfig }
     case 'gallery': return { images: [], columns: '3', gap: '16', borderRadius: '12' }
     case 'video': return { url: '', caption: '', width: '100%', borderRadius: '12' }
     case 'hero': return { title: 'Your Product Name', subtitle: 'The best solution for your needs', buttonText: 'Get Started', bgImage: '', bgColor: '#0f172a', align: 'center', height: '500', overlayOpacity: '60' }
@@ -129,14 +138,14 @@ function getDefaultContent(type: string): Record<string, any> {
     case 'testimonials': return { items: [{ name: 'John Doe', role: 'Customer', text: 'Great product!', avatar: '', rating: '5' }], columns: '2', align: 'center' }
     case 'faq': return { items: [{ question: 'Question?', answer: 'Answer.' }], align: 'left' }
     case 'countdown': return { targetDate: '', label: 'Offer ends in:', style: 'modern', align: 'center' }
-    case 'cta': return { title: 'Ready to get started?', text: 'Join thousands of satisfied customers.', buttonText: 'Buy Now', align: 'center', bgColor: '#f1f5f9' }
+    case 'cta': return { title: 'Ready to get started?', text: 'Join thousands of satisfied customers.', buttonText: 'Buy Now', align: 'center', bgColor: '#f1f5f9', ...defaultActionConfig }
     case 'divider': return { style: 'solid', color: '#e2e8f0', height: '1', width: '100' }
     case 'spacer': return { height: 40 }
     case 'product_image': return { width: '100%', borderRadius: '12', align: 'center', maxWidth: '600' }
     case 'product_name': return { level: 'h1', align: 'center', color: '#0f172a', fontSize: '48', fontWeight: '800' }
     case 'product_price': return { align: 'center', showCompare: true, color: '#0f172a', compareColor: '#94a3b8', fontSize: '36', fontWeight: '700' }
     case 'product_description': return { align: 'center', color: '#475569', fontSize: '18', maxLines: '0' }
-    case 'buy_button': return { text: 'Buy Now', style: 'primary', size: 'lg', align: 'center', rounded: 'md', fullWidth: false }
+    case 'buy_button': return { text: 'Buy Now', style: 'primary', size: 'lg', align: 'center', rounded: 'md', fullWidth: false, ...defaultActionConfig }
     case 'html': return { code: '<div style="padding: 20px; background: #f1f5f9; border-radius: 8px;">Custom HTML</div>' }
     default: return {}
   }
@@ -277,6 +286,28 @@ function BlockPreview({ block }: { block: BuilderBlock }) {
 /* ==================== LIVE PREVIEW RENDERER ==================== */
 function LivePreviewRenderer({ blocks, product, device }: { blocks: BuilderBlock[]; product: ProductData; device: string }) {
   const isAvailable = product.status === 'active'
+  const getActionUrl = (content: Record<string, any>, product: ProductData) => {
+    // If action type is set, use action config
+    if (content.actionType === 'direct_url') {
+      return content.url || '#'
+    }
+    if (content.actionType === 'product_purchase') {
+      if (content.productId) {
+        let checkoutUrl = `/checkout?product=${product.slug}`
+        if (content.variantId) {
+          checkoutUrl += `&variant=${content.variantId}`
+        }
+        return checkoutUrl
+      }
+    }
+    // Fallback to default product URL
+    switch (product.cta_type) {
+      case 'whatsapp': return product.whatsapp_number ? `https://wa.me/${product.whatsapp_number}` : '#'
+      case 'external_link': return product.external_url || '#'
+      case 'order_form': return '#'
+      default: return `/checkout?product=${product.slug}`
+    }
+  }
   const getCtaUrl = () => {
     switch (product.cta_type) {
       case 'whatsapp': return product.whatsapp_number ? `https://wa.me/${product.whatsapp_number}` : '#'
@@ -346,20 +377,34 @@ function LivePreviewRenderer({ blocks, product, device }: { blocks: BuilderBlock
                   const btnStyle = content.style === 'secondary' ? 'bg-secondary text-secondary-foreground' : content.style === 'outline' ? 'bg-transparent border-2 border-primary text-primary' : 'bg-primary text-primary-foreground'
                   const btnSize = content.size === 'sm' ? 'px-4 py-2 text-sm' : content.size === 'lg' ? 'px-8 py-4 text-lg' : 'px-6 py-3 text-base'
                   const btnRounded = content.rounded === 'none' ? 'rounded-none' : content.rounded === 'full' ? 'rounded-full' : 'rounded-lg'
+                  const btnUrl = content.actionType ? getActionUrl(content, product) : (content.url || getCtaUrl())
+                  const btnTarget = content.openInNewTab ? '_blank' : undefined
                   return (
                     <div className={`py-4 px-4 ${alignClass}`}>
-                      <a href={content.url || getCtaUrl()} className={`inline-block font-semibold ${btnStyle} ${btnSize} ${btnRounded} hover:opacity-90 transition-opacity`}>
+                      <a href={btnUrl} target={btnTarget} className={`inline-block font-semibold ${btnStyle} ${btnSize} ${btnRounded} hover:opacity-90 transition-opacity`}>
                         {content.text}
                       </a>
                     </div>
                   )
                 }
-                case 'image': return (
-                  <div className={`py-4 px-4 ${alignClass}`}>
-                    {content.src && <img src={content.src} alt={content.alt} className="mx-auto" style={{ width: content.width, height: content.height, borderRadius: content.borderRadius ? `${content.borderRadius}px` : undefined }} />}
-                    {content.caption && <p className="text-sm text-muted-foreground mt-2">{content.caption}</p>}
-                  </div>
-                )
+                case 'image': {
+                  const imgUrl = content.actionType ? getActionUrl(content, product) : null
+                  const imgTarget = content.openInNewTab ? '_blank' : undefined
+                  return (
+                    <div className={`py-4 px-4 ${alignClass}`}>
+                      {content.src ? (
+                        imgUrl ? (
+                          <a href={imgUrl} target={imgTarget}>
+                            <img src={content.src} alt={content.alt} className="mx-auto cursor-pointer hover:opacity-90 transition-opacity" style={{ width: content.width, height: content.height, borderRadius: content.borderRadius ? `${content.borderRadius}px` : undefined }} />
+                          </a>
+                        ) : (
+                          <img src={content.src} alt={content.alt} className="mx-auto" style={{ width: content.width, height: content.height, borderRadius: content.borderRadius ? `${content.borderRadius}px` : undefined }} />
+                        )
+                      ) : null}
+                      {content.caption && <p className="text-sm text-muted-foreground mt-2">{content.caption}</p>}
+                    </div>
+                  )
+                }
                 case 'gallery': return (
                   <div className="py-4 px-4 grid gap-4" style={{ gridTemplateColumns: `repeat(${content.columns || '3'}, 1fr)`, gap: `${content.gap || 16}px` }}>
                     {content.images?.map((img: string, i: number) => (
@@ -443,14 +488,18 @@ function LivePreviewRenderer({ blocks, product, device }: { blocks: BuilderBlock
                     <div className="text-3xl font-bold">{content.targetDate || 'No date set'}</div>
                   </div>
                 )
-                case 'cta': return (
-                  <div className={`py-12 px-4 ${alignClass}`} style={{ background: content.bgColor || '#f1f5f9' }}>
-                    <h3 className="text-xl font-bold mb-2">{content.title}</h3>
-                    <p className="mb-4">{content.text}</p>
-                    {isAvailable && <a href={getCtaUrl()} className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90">{content.buttonText || getCtaLabel()}</a>}
-                    {!isAvailable && <button disabled className="px-6 py-3 bg-muted text-muted-foreground rounded-lg font-semibold cursor-not-allowed">{product.status === 'sold_out' ? 'Sold Out' : 'Coming Soon'}</button>}
-                  </div>
-                )
+                case 'cta': {
+                  const ctaUrl = content.actionType ? getActionUrl(content, product) : getCtaUrl()
+                  const ctaTarget = content.openInNewTab ? '_blank' : undefined
+                  return (
+                    <div className={`py-12 px-4 ${alignClass}`} style={{ background: content.bgColor || '#f1f5f9' }}>
+                      <h3 className="text-xl font-bold mb-2">{content.title}</h3>
+                      <p className="mb-4">{content.text}</p>
+                      {isAvailable && <a href={ctaUrl} target={ctaTarget} className="inline-block px-6 py-3 bg-primary text-primary-foreground rounded-lg font-semibold hover:opacity-90">{content.buttonText || getCtaLabel()}</a>}
+                      {!isAvailable && <button disabled className="px-6 py-3 bg-muted text-muted-foreground rounded-lg font-semibold cursor-not-allowed">{product.status === 'sold_out' ? 'Sold Out' : 'Coming Soon'}</button>}
+                    </div>
+                  )
+                }
                 case 'divider': return (
                   <div className="py-4 px-4">
                     <hr style={{ borderStyle: content.style || 'solid', borderColor: content.color || '#e2e8f0', borderWidth: `${content.height || 1}px 0 0 0` }} />
@@ -487,10 +536,12 @@ function LivePreviewRenderer({ blocks, product, device }: { blocks: BuilderBlock
                   const btnSize = content.size === 'sm' ? 'px-4 py-2 text-sm' : content.size === 'lg' ? 'px-8 py-4 text-lg' : 'px-6 py-3 text-base'
                   const btnRounded = content.rounded === 'none' ? 'rounded-none' : content.rounded === 'full' ? 'rounded-full' : 'rounded-lg'
                   const btnWidth = content.fullWidth ? 'w-full' : 'inline-block'
+                  const buyUrl = content.actionType ? getActionUrl(content, product) : getCtaUrl()
+                  const buyTarget = content.openInNewTab ? '_blank' : undefined
                   return (
                     <div className={`py-4 px-4 ${alignClass}`}>
                       {isAvailable ? (
-                        <a href={getCtaUrl()} className={`${btnWidth} font-semibold ${btnStyle} ${btnSize} ${btnRounded} hover:opacity-90 transition-opacity`}>
+                        <a href={buyUrl} target={buyTarget} className={`${btnWidth} font-semibold ${btnStyle} ${btnSize} ${btnRounded} hover:opacity-90 transition-opacity`}>
                           {content.text || getCtaLabel()}
                         </a>
                       ) : (
@@ -650,11 +701,25 @@ function BlockSettings({ block, onChange, onImageSelect }: { block: BuilderBlock
       <div className="space-y-3">
         <h3 className="font-semibold text-sm">Button Settings</h3>
         {renderField('text', 'Button Text')}
-        {renderField('url', 'Link URL')}
         {renderField('style', 'Style', 'select', 'primary,secondary,outline')}
         {renderField('size', 'Size', 'select', 'sm,md,lg')}
         {renderField('align', 'Alignment', 'select', 'left,center,right')}
         {renderField('rounded', 'Rounded', 'select', 'none,md,lg,full')}
+        <div className="border-t pt-3 mt-3">
+          <h4 className="text-xs font-semibold mb-2">Action Configuration</h4>
+          <ActionConfigEditor
+            actionType={content.actionType || ''}
+            url={content.url || ''}
+            openInNewTab={content.openInNewTab || false}
+            productId={content.productId || null}
+            variantId={content.variantId || null}
+            onActionTypeChange={(type) => update('actionType', type)}
+            onUrlChange={(url) => update('url', url)}
+            onOpenInNewTabChange={(open) => update('openInNewTab', open)}
+            onProductIdChange={(id) => update('productId', id)}
+            onVariantIdChange={(id) => update('variantId', id)}
+          />
+        </div>
       </div>
     )
     case 'image': return (
@@ -667,6 +732,21 @@ function BlockSettings({ block, onChange, onImageSelect }: { block: BuilderBlock
         {renderField('borderRadius', 'Border Radius (px)', 'number')}
         {renderField('align', 'Alignment', 'select', 'left,center,right')}
         {renderField('caption', 'Caption')}
+        <div className="border-t pt-3 mt-3">
+          <h4 className="text-xs font-semibold mb-2">Click Action</h4>
+          <ActionConfigEditor
+            actionType={content.actionType || ''}
+            url={content.url || ''}
+            openInNewTab={content.openInNewTab || false}
+            productId={content.productId || null}
+            variantId={content.variantId || null}
+            onActionTypeChange={(type) => update('actionType', type)}
+            onUrlChange={(url) => update('url', url)}
+            onOpenInNewTabChange={(open) => update('openInNewTab', open)}
+            onProductIdChange={(id) => update('productId', id)}
+            onVariantIdChange={(id) => update('variantId', id)}
+          />
+        </div>
       </div>
     )
     case 'gallery': return (
@@ -799,6 +879,21 @@ function BlockSettings({ block, onChange, onImageSelect }: { block: BuilderBlock
         {renderField('buttonText', 'Button Text')}
         {renderField('align', 'Alignment', 'select', 'left,center,right')}
         {renderField('bgColor', 'Background Color', 'color')}
+        <div className="border-t pt-3 mt-3">
+          <h4 className="text-xs font-semibold mb-2">Button Action</h4>
+          <ActionConfigEditor
+            actionType={content.actionType || ''}
+            url={content.url || ''}
+            openInNewTab={content.openInNewTab || false}
+            productId={content.productId || null}
+            variantId={content.variantId || null}
+            onActionTypeChange={(type) => update('actionType', type)}
+            onUrlChange={(url) => update('url', url)}
+            onOpenInNewTabChange={(open) => update('openInNewTab', open)}
+            onProductIdChange={(id) => update('productId', id)}
+            onVariantIdChange={(id) => update('variantId', id)}
+          />
+        </div>
       </div>
     )
     case 'divider': return (
@@ -861,6 +956,22 @@ function BlockSettings({ block, onChange, onImageSelect }: { block: BuilderBlock
         {renderField('align', 'Alignment', 'select', 'left,center,right')}
         {renderField('rounded', 'Rounded', 'select', 'none,md,lg,full')}
         {renderField('fullWidth', 'Full Width', 'select', 'true,false')}
+        <div className="border-t pt-3 mt-3">
+          <h4 className="text-xs font-semibold mb-2">Override Action (Optional)</h4>
+          <p className="text-xs text-muted-foreground mb-2">Leave empty to use default product checkout</p>
+          <ActionConfigEditor
+            actionType={content.actionType || ''}
+            url={content.url || ''}
+            openInNewTab={content.openInNewTab || false}
+            productId={content.productId || null}
+            variantId={content.variantId || null}
+            onActionTypeChange={(type) => update('actionType', type)}
+            onUrlChange={(url) => update('url', url)}
+            onOpenInNewTabChange={(open) => update('openInNewTab', open)}
+            onProductIdChange={(id) => update('productId', id)}
+            onVariantIdChange={(id) => update('variantId', id)}
+          />
+        </div>
       </div>
     )
     case 'html': return (

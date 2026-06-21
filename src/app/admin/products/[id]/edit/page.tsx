@@ -12,6 +12,12 @@ import { uploadProductImage, validateImageFile, deleteProductImage, uploadProduc
 import { toast } from 'sonner'
 import { Loader2, Upload, X, Trash2 } from 'lucide-react'
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog'
+import {
+  VariantEditor,
+  validateVariants,
+  prepareVariantForSave,
+  type Variant,
+} from '@/components/product-variant-editor'
 
 interface Category {
   id: string
@@ -29,9 +35,6 @@ interface Product {
   category_id: string | null
   image_url: string | null
   status: 'active' | 'sold_out' | 'coming_soon'
-  cta_type: 'buy_now' | 'whatsapp' | 'order_form' | 'external_link'
-  whatsapp_number: string | null
-  external_url: string | null
   download_type: 'file_upload' | 'external_url' | null
   download_file: string | null
   download_url: string | null
@@ -42,6 +45,25 @@ interface Product {
   license_type: string | null
   license_duration: string | null
   custom_license_days: number | null
+  variants_enabled: boolean
+}
+
+interface ProductVariant {
+  id: string
+  variant_type: string
+  name: string
+  price: number
+  description: string | null
+  duration_days: number | null
+  device_limit: number | null
+  min_quantity: number | null
+  max_quantity: number | null
+  billing_period: string | null
+  subscription_duration: number | null
+  feature_list: string[] | null
+  access_duration_days: number | null
+  benefits: string[] | null
+  sort_order: number
 }
 
 function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
@@ -60,11 +82,13 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
   const [deleting, setDeleting] = useState(false)
   const imageInputRef = useRef<HTMLInputElement>(null)
   const downloadInputRef = useRef<HTMLInputElement>(null)
+  const [variantsEnabled, setVariantsEnabled] = useState(false)
+  const [variants, setVariants] = useState<Variant[]>([])
 
   const [form, setForm] = useState<Record<string, any>>({
     name: '', slug: '', description: '', short_description: '', price: '', compare_price: '', category_id: '',
-    image_url: '', status: 'active', cta_type: 'buy_now', whatsapp_number: '', external_url: '',
-    download_type: '', download_url: '', affiliate_enabled: false, commission_type: '', commission_value: '',
+    image_url: '', status: 'active', download_type: '', download_url: '',
+    affiliate_enabled: false, commission_type: '', commission_value: '',
     license_enabled: false, license_type: '', license_duration: '', custom_license_days: '',
   })
 
@@ -72,9 +96,10 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
 
   useEffect(() => {
     const fetchData = async () => {
-      const [{ data: product }, { data: cats }] = await Promise.all([
+      const [{ data: product }, { data: cats }, { data: productVariants }] = await Promise.all([
         supabase.from('products').select('*').eq('id', id).single(),
         supabase.from('categories').select('id, name').eq('is_active', true).order('name'),
+        supabase.from('product_variants').select('*').eq('product_id', id).order('sort_order'),
       ])
       if (product) {
         setForm({
@@ -87,9 +112,6 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
           category_id: product.category_id || '',
           image_url: product.image_url || '',
           status: product.status || 'active',
-          cta_type: product.cta_type || 'buy_now',
-          whatsapp_number: product.whatsapp_number || '',
-          external_url: product.external_url || '',
           download_type: product.download_type || '',
           download_url: product.download_url || '',
           affiliate_enabled: product.affiliate_enabled || false,
@@ -102,6 +124,27 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
         })
         if (product.image_url) setImagePreview(product.image_url)
         if (product.download_file) setDownloadFileName(product.download_file.split('/').pop() || null)
+        setVariantsEnabled(product.variants_enabled || false)
+      }
+      if (productVariants && productVariants.length > 0) {
+        setVariants(productVariants.map((v: ProductVariant) => ({
+          id: v.id,
+          variant_type: v.variant_type as Variant['variant_type'],
+          name: v.name,
+          price: v.price?.toString() || '',
+          description: v.description || '',
+          duration_days: v.duration_days?.toString() || '',
+          device_limit: v.device_limit?.toString() || '',
+          min_quantity: v.min_quantity?.toString() || '',
+          max_quantity: v.max_quantity?.toString() || '',
+          billing_period: (v.billing_period || '') as Variant['billing_period'],
+          subscription_duration: v.subscription_duration?.toString() || '',
+          feature_list: v.feature_list || [],
+          access_duration_days: v.access_duration_days?.toString() || '',
+          benefits: v.benefits || [],
+          sort_order: v.sort_order,
+          is_expanded: false,
+        })))
       }
       setCategories(cats || [])
       setLoading(false)
@@ -141,13 +184,24 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
 
   const validateForm = (): boolean => {
     if (!form.name.trim()) { toast.error('Name is required'); return false }
-    if (!form.price || parseFloat(form.price) <= 0) { toast.error('Price must be greater than 0'); return false }
+
+    if (variantsEnabled) {
+      if (variants.length === 0) {
+        toast.error('At least one variant is required when variants are enabled')
+        return false
+      }
+      const variantError = validateVariants(variants)
+      if (variantError) { toast.error(variantError); return false }
+    } else {
+      if (!form.price || parseFloat(form.price) <= 0) { toast.error('Price must be greater than 0'); return false }
+    }
+
     if (form.affiliate_enabled) {
       if (!form.commission_type) { toast.error('Commission type required'); return false }
       if (!form.commission_value || parseFloat(form.commission_value) <= 0) { toast.error('Commission value required'); return false }
       if (form.commission_type === 'percentage' && parseFloat(form.commission_value) > 100) { toast.error('Cannot exceed 100%'); return false }
     }
-    if (form.license_enabled) {
+    if (form.license_enabled && !variantsEnabled) {
       if (!form.license_type) { toast.error('License type required'); return false }
       if (!form.license_duration) { toast.error('License duration required'); return false }
       if (form.license_duration === 'custom' && !form.custom_license_days) { toast.error('Custom days required'); return false }
@@ -195,16 +249,17 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
 
     const payload: Record<string, any> = {
       name: form.name, slug: form.slug, description: form.description || null,
-      short_description: form.short_description || null, price: parseFloat(form.price),
+      short_description: form.short_description || null,
+      price: variantsEnabled ? 0 : parseFloat(form.price),
       compare_price: form.compare_price ? parseFloat(form.compare_price) : null,
       category_id: form.category_id || null, image_url: imageUrl || null,
-      status: form.status, cta_type: form.cta_type,
-      whatsapp_number: form.cta_type === 'whatsapp' ? form.whatsapp_number : null,
-      external_url: form.cta_type === 'external_link' ? form.external_url : null,
+      status: form.status,
       download_type: form.download_type || null,
       download_file: form.download_type === 'file_upload' ? downloadFilePath : null,
       download_url: form.download_type === 'external_url' ? form.download_url : null,
-      affiliate_enabled: form.affiliate_enabled, license_enabled: form.license_enabled,
+      affiliate_enabled: form.affiliate_enabled,
+      license_enabled: form.license_enabled && !variantsEnabled,
+      variants_enabled: variantsEnabled,
       updated_at: new Date().toISOString(),
     }
 
@@ -216,7 +271,7 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
       payload.commission_value = null
     }
 
-    if (form.license_enabled) {
+    if (form.license_enabled && !variantsEnabled) {
       payload.license_type = form.license_type
       payload.license_duration = form.license_duration
       payload.custom_license_days = form.license_duration === 'custom' ? parseInt(form.custom_license_days) : null
@@ -228,6 +283,33 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
 
     const { error } = await supabase.from('products').update(payload).eq('id', id)
     if (error) { toast.error(error.message); setSaving(false); return }
+
+    // Handle variants
+    // First, get existing variants to determine which to delete
+    const { data: existingVariants } = await supabase.from('product_variants').select('id').eq('product_id', id)
+    const existingIds = new Set(existingVariants?.map((v: { id: string }) => v.id) || [])
+    const newIds = new Set(variants.filter((v) => !v.id.startsWith('new-')).map((v) => v.id))
+    const idsToDelete = [...existingIds].filter((id) => !newIds.has(id))
+
+    // Delete removed variants
+    if (idsToDelete.length > 0) {
+      await supabase.from('product_variants').delete().in('id', idsToDelete)
+    }
+
+    // Upsert variants
+    if (variantsEnabled && variants.length > 0) {
+      for (let idx = 0; idx < variants.length; idx++) {
+        const v = variants[idx]
+        const variantPayload = prepareVariantForSave(v, id, idx)
+        if (v.id.startsWith('new-')) {
+          const { id: _, ...insertPayload } = variantPayload
+          await supabase.from('product_variants').insert(insertPayload)
+        } else {
+          await supabase.from('product_variants').update(variantPayload).eq('id', v.id)
+        }
+      }
+    }
+
     toast.success('Product updated!')
     router.push('/admin/products')
   }
@@ -236,6 +318,7 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
     setDeleting(true)
     if (form.image_url) await deleteProductImage(form.image_url)
     if (form.download_file) await deleteProductDownload(form.download_file)
+    await supabase.from('product_variants').delete().eq('product_id', id)
     const { error } = await supabase.from('products').delete().eq('id', id)
     if (error) { toast.error('Failed to delete'); setDeleting(false); return }
     toast.success('Product deleted!')
@@ -259,10 +342,25 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
             </div>
             <div className="space-y-2"><Label>Short Description</Label><Input value={form.short_description || ''} onChange={(e) => setForm({ ...form, short_description: e.target.value })} /></div>
             <div className="space-y-2"><Label>Description</Label><Textarea value={form.description || ''} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2"><Label>Price *</Label><Input type="number" step="0.01" min="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required /></div>
-              <div className="space-y-2"><Label>Compare Price</Label><Input type="number" step="0.01" value={form.compare_price || ''} onChange={(e) => setForm({ ...form, compare_price: e.target.value })} /></div>
+
+            <div className="border rounded-lg p-4 space-y-4">
+              <h3 className="font-semibold">Pricing</h3>
+              <VariantEditor
+                productId={id}
+                variantsEnabled={variantsEnabled}
+                onVariantsEnabledChange={setVariantsEnabled}
+                variants={variants}
+                onVariantsChange={setVariants}
+              />
+
+              {!variantsEnabled && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Price *</Label><Input type="number" step="0.01" min="0.01" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} required /></div>
+                  <div className="space-y-2"><Label>Compare Price</Label><Input type="number" step="0.01" value={form.compare_price || ''} onChange={(e) => setForm({ ...form, compare_price: e.target.value })} /></div>
+                </div>
+              )}
             </div>
+
             <div className="space-y-2">
               <Label>Category</Label>
               <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm" value={form.category_id || ''} onChange={(e) => setForm({ ...form, category_id: e.target.value })}>
@@ -290,17 +388,6 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
                 <option value="coming_soon">Coming Soon</option>
               </select>
             </div>
-            <div className="space-y-2">
-              <Label>CTA Type</Label>
-              <select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm" value={form.cta_type} onChange={(e) => setForm({ ...form, cta_type: e.target.value })}>
-                <option value="buy_now">Buy Now</option>
-                <option value="whatsapp">WhatsApp</option>
-                <option value="order_form">Order Form</option>
-                <option value="external_link">External Link</option>
-              </select>
-            </div>
-            {form.cta_type === 'whatsapp' && <div className="space-y-2"><Label>WhatsApp Number</Label><Input value={form.whatsapp_number || ''} onChange={(e) => setForm({ ...form, whatsapp_number: e.target.value })} placeholder="+62..." /></div>}
-            {form.cta_type === 'external_link' && <div className="space-y-2"><Label>External URL</Label><Input value={form.external_url || ''} onChange={(e) => setForm({ ...form, external_url: e.target.value })} placeholder="https://..." /></div>}
 
             <div className="border rounded-lg p-4 space-y-4">
               <h3 className="font-semibold">Digital Delivery</h3>
@@ -337,16 +424,20 @@ function EditProductForm({ params }: { params: Promise<{ id: string }> }) {
               </div>
             )}
 
-            <div className="flex items-center gap-2">
-              <input type="checkbox" id="license_enabled" checked={form.license_enabled} onChange={(e) => setForm({ ...form, license_enabled: e.target.checked })} className="h-4 w-4" />
-              <Label htmlFor="license_enabled">License Enabled</Label>
-            </div>
-            {form.license_enabled && (
-              <div className="space-y-4 pl-6 border-l-2 border-primary/20">
-                <div className="space-y-2"><Label>License Type</Label><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm" value={form.license_type || ''} onChange={(e) => setForm({ ...form, license_type: e.target.value })}><option value="">Select</option><option value="manual">Manual License</option><option value="auto_generated">Auto Generated License</option></select></div>
-                <div className="space-y-2"><Label>License Duration</Label><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm" value={form.license_duration || ''} onChange={(e) => setForm({ ...form, license_duration: e.target.value })}><option value="">Select</option><option value="lifetime">Lifetime</option><option value="30_days">30 Days</option><option value="90_days">90 Days</option><option value="180_days">180 Days</option><option value="1_year">1 Year</option><option value="custom">Custom</option></select></div>
-                {form.license_duration === 'custom' && <div className="space-y-2"><Label>Custom Duration (days)</Label><Input type="number" value={form.custom_license_days || ''} onChange={(e) => setForm({ ...form, custom_license_days: e.target.value })} /></div>}
-              </div>
+            {!variantsEnabled && (
+              <>
+                <div className="flex items-center gap-2">
+                  <input type="checkbox" id="license_enabled" checked={form.license_enabled} onChange={(e) => setForm({ ...form, license_enabled: e.target.checked })} className="h-4 w-4" />
+                  <Label htmlFor="license_enabled">License Enabled</Label>
+                </div>
+                {form.license_enabled && (
+                  <div className="space-y-4 pl-6 border-l-2 border-primary/20">
+                    <div className="space-y-2"><Label>License Type</Label><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm" value={form.license_type || ''} onChange={(e) => setForm({ ...form, license_type: e.target.value })}><option value="">Select</option><option value="manual">Manual License</option><option value="auto_generated">Auto Generated License</option></select></div>
+                    <div className="space-y-2"><Label>License Duration</Label><select className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm" value={form.license_duration || ''} onChange={(e) => setForm({ ...form, license_duration: e.target.value })}><option value="">Select</option><option value="lifetime">Lifetime</option><option value="30_days">30 Days</option><option value="90_days">90 Days</option><option value="180_days">180 Days</option><option value="1_year">1 Year</option><option value="custom">Custom</option></select></div>
+                    {form.license_duration === 'custom' && <div className="space-y-2"><Label>Custom Duration (days)</Label><Input type="number" value={form.custom_license_days || ''} onChange={(e) => setForm({ ...form, custom_license_days: e.target.value })} /></div>}
+                  </div>
+                )}
+              </>
             )}
 
             <div className="flex gap-4 pt-4">
