@@ -28,8 +28,8 @@ export default function AnalyticsPage() {
       // Revenue
       const { data: currentRevenue } = await supabase.from('orders').select('total_amount').eq('status', 'paid').gte('created_at', thirtyDaysAgo)
       const { data: prevRevenue } = await supabase.from('orders').select('total_amount').eq('status', 'paid').gte('created_at', sixtyDaysAgo).lt('created_at', thirtyDaysAgo)
-      const rev = (currentRevenue || []).reduce((s: number, o: { total_amount: number | string }) => s + parseFloat(String(o.total_amount)), 0)
-      const prevRev = (prevRevenue || []).reduce((s: number, o: { total_amount: number | string }) => s + parseFloat(String(o.total_amount)), 0)
+      const rev = (currentRevenue || []).reduce((s, o) => s + parseFloat(o.total_amount), 0)
+      const prevRev = (prevRevenue || []).reduce((s, o) => s + parseFloat(o.total_amount), 0)
 
       // Orders
       const { count: currentOrders } = await supabase.from('orders').select('id', { count: 'exact', head: true }).gte('created_at', thirtyDaysAgo)

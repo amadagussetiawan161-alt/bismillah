@@ -256,7 +256,7 @@ function LivePreviewRenderer({ blocks, product, device }: { blocks: BuilderBlock
             const { email, subject, body } = navAction.config
             if (email) {
               let mailto = `mailto:${email}`
-              const params: string[] = []
+              const params = []
               if (subject) params.push(`subject=${encodeURIComponent(subject)}`)
               if (body) params.push(`body=${encodeURIComponent(body)}`)
               if (params.length) mailto += `?${params.join('&')}`

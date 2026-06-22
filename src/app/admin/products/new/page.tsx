@@ -61,7 +61,7 @@ export default function NewProductPage() {
   const supabase = createBrowserClient()
 
   useEffect(() => {
-    supabase.from('categories').select('id, name').eq('is_active', true).order('name').then(({ data }: { data: { id: string; name: string }[] | null }) => {
+    supabase.from('categories').select('id, name').eq('is_active', true).order('name').then(({ data }) => {
       setCategories(data || [])
     })
   }, [])
@@ -150,8 +150,8 @@ export default function NewProductPage() {
       .or(`name.eq.${form.name},slug.eq.${slug}`)
 
     if (existingProducts && existingProducts.length > 0) {
-      const duplicateName = existingProducts.find((p: { name: string }) => p.name.toLowerCase() === form.name.toLowerCase())
-      const duplicateSlug = existingProducts.find((p: { slug: string }) => p.slug === slug)
+      const duplicateName = existingProducts.find(p => p.name.toLowerCase() === form.name.toLowerCase())
+      const duplicateSlug = existingProducts.find(p => p.slug === slug)
       if (duplicateName) {
         toast.error('Product name already exists. Please choose a different name.')
       } else if (duplicateSlug) {

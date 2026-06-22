@@ -1,194 +1,80 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Select } from '@/components/ui/select'
-import { createBrowserSupabaseClient } from '@/lib/supabase/client'
-import { formatDateTime, formatCurrency } from '@/lib/utils'
+import { createBrowserClient } from '@/lib/supabase/client'
+import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
-import { Search, ChevronLeft, ChevronRight, Loader as Loader2, ShoppingCart, Eye, MoveVertical as MoreVertical } from 'lucide-react'
 
-interface Order {
-  id: string
-  user_id: string
-  order_number: string
-  status: string
-  total_amount: number
-  created_at: string
-  profiles: { email: string }[] | null
-}
+interface Order { id: string; order_number: string; total_amount: number; status: string; created_at: string; user: { email: string } | null }
+interface OrderRow { id: string; order_number: string; total_amount: number; status: string; created_at: string; user: { email: string }[] }
 
-export default function OrdersManagementPage() {
+export default function AdminOrdersPage() {
   const [loading, setLoading] = useState(true)
   const [orders, setOrders] = useState<Order[]>([])
-  const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState('all')
-  const [currentPage, setCurrentPage] = useState(1)
-  const [totalOrders, setTotalOrders] = useState(0)
+  const supabase = createBrowserClient()
 
-  const perPage = 10
-  const supabase = createBrowserSupabaseClient()
-
-  useEffect(() => {
-    fetchOrders()
-  }, [currentPage, statusFilter, searchQuery])
+  useEffect(() => { fetchOrders() }, [])
 
   const fetchOrders = async () => {
-    setLoading(true)
-    let query = supabase
-      .from('orders')
-      .select('id, user_id, order_number, status, total_amount, created_at, profiles(email)', { count: 'exact' })
-
-    if (statusFilter !== 'all') {
-      query = query.eq('status', statusFilter)
-    }
-
-    if (searchQuery) {
-      query = query.or(`order_number.ilike.%${searchQuery}%`)
-    }
-
-    const from = (currentPage - 1) * perPage
-    const to = from + perPage - 1
-    const { data, count, error } = await query.order('created_at', { ascending: false }).range(from, to)
-
-    if (error) {
-      toast.error('Gagal memuat data pesanan')
-      setLoading(false)
-      return
-    }
-
-    setOrders(data || [])
-    setTotalOrders(count || 0)
+    const { data } = await supabase.from('orders').select('id, order_number, total_amount, status, created_at, user:profiles(email)').order('created_at', { ascending: false })
+    const formatted: Order[] = (data as OrderRow[])?.map(row => ({
+      id: row.id, order_number: row.order_number, total_amount: row.total_amount, status: row.status, created_at: row.created_at,
+      user: row.user?.[0] || null
+    })) || []
+    setOrders(formatted)
     setLoading(false)
   }
 
-  const totalPages = Math.ceil(totalOrders / perPage)
+  const updateStatus = async (orderId: string, newStatus: string) => {
+    const { error } = await supabase.from('orders').update({ status: newStatus }).eq('id', orderId)
+    if (error) toast.error('Failed to update status')
+    else { toast.success('Status updated'); fetchOrders() }
+  }
 
-  const getStatusBadge = (status: string) => {
+  const getStatusColor = (status: string) => {
     switch (status) {
-      case 'paid': return <Badge variant="success">Dibayar</Badge>
-      case 'pending': return <Badge variant="warning">Menunggu</Badge>
-      case 'cancelled': return <Badge variant="error">Dibatalkan</Badge>
-      case 'refunded': return <Badge variant="secondary">Dikembalikan</Badge>
-      default: return <Badge variant="secondary">{status}</Badge>
+      case 'paid': case 'completed': return 'bg-green-500/10 text-green-500'
+      case 'pending': return 'bg-yellow-500/10 text-yellow-500'
+      case 'processing': return 'bg-blue-500/10 text-blue-500'
+      case 'cancelled': return 'bg-red-500/10 text-red-500'
+      default: return 'bg-gray-500/10 text-gray-500'
     }
   }
 
+  if (loading) return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin" /></div>
+
   return (
-    <div className="max-w-7xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-slate-900">Orders</h1>
-        <p className="text-slate-500 mt-1">Kelola semua pesanan</p>
-      </div>
+    <div>
+      <div className="mb-8"><h1 className="text-3xl font-bold">Orders</h1><p className="text-muted-foreground">{orders.length} orders</p></div>
 
       <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <Input
-                placeholder="Cari pesanan..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value)
-                  setCurrentPage(1)
-                }}
-                className="pl-10"
-              />
-            </div>
-            <div className="w-full sm:w-48">
-              <Select
-                value={statusFilter}
-                onChange={(e) => {
-                  setStatusFilter(e.target.value)
-                  setCurrentPage(1)
-                }}
-              >
-                <option value="all">Semua Status</option>
-                <option value="paid">Dibayar</option>
-                <option value="pending">Menunggu</option>
-                <option value="cancelled">Dibatalkan</option>
-                <option value="refunded">Dikembalikan</option>
-              </Select>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card>
+        <CardHeader><CardTitle>All Orders</CardTitle></CardHeader>
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50">
-                  <th className="text-left py-4 px-6 text-xs font-medium text-slate-500 uppercase">Pesanan</th>
-                  <th className="text-left py-4 px-6 text-xs font-medium text-slate-500 uppercase">Pengguna</th>
-                  <th className="text-left py-4 px-6 text-xs font-medium text-slate-500 uppercase">Total</th>
-                  <th className="text-left py-4 px-6 text-xs font-medium text-slate-500 uppercase">Status</th>
-                  <th className="text-left py-4 px-6 text-xs font-medium text-slate-500 uppercase">Tanggal</th>
+          <table className="w-full">
+            <thead><tr className="border-b"><th className="text-left py-3 px-4">Order</th><th className="text-left py-3 px-4">Customer</th><th className="text-left py-3 px-4">Total</th><th className="text-left py-3 px-4">Status</th><th className="text-left py-3 px-4">Date</th><th className="text-left py-3 px-4">Actions</th></tr></thead>
+            <tbody>
+              {orders.map((order) => (
+                <tr key={order.id} className="border-b hover:bg-muted/50">
+                  <td className="py-3 px-4 font-mono text-sm">{order.order_number}</td>
+                  <td className="py-3 px-4">{order.user?.email || '-'}</td>
+                  <td className="py-3 px-4 font-semibold">${order.total_amount}</td>
+                  <td className="py-3 px-4"><Badge className={getStatusColor(order.status)}>{order.status}</Badge></td>
+                  <td className="py-3 px-4 text-sm text-muted-foreground">{new Date(order.created_at).toLocaleString()}</td>
+                  <td className="py-3 px-4">
+                    <select className="text-sm border rounded px-2 py-1" value={order.status} onChange={(e) => updateStatus(order.id, e.target.value)}>
+                      <option value="pending">Pending</option>
+                      <option value="paid">Paid</option>
+                      <option value="processing">Processing</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={5} className="text-center py-12">
-                      <Loader2 className="h-6 w-6 animate-spin text-slate-400 mx-auto" />
-                    </td>
-                  </tr>
-                ) : orders.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="text-center py-12 text-slate-500">
-                      <ShoppingCart className="h-10 w-10 mx-auto mb-2 opacity-30" />
-                      Tidak ada pesanan
-                    </td>
-                  </tr>
-                ) : (
-                  orders.map((order) => (
-                    <tr key={order.id} className="border-b border-slate-100 hover:bg-slate-50">
-                      <td className="py-4 px-6">
-                        <div>
-                          <p className="font-medium text-sm text-slate-900">{order.order_number || order.id.slice(0, 8)}</p>
-                          <p className="text-xs text-slate-500">{order.id.slice(0, 8)}</p>
-                        </div>
-                      </td>
-                      <td className="py-4 px-6">
-                        <span className="text-sm text-slate-600">{order.profiles?.[0]?.email || '-'}</span>
-                      </td>
-                      <td className="py-4 px-6">
-                        <span className="text-sm font-medium text-slate-900">{formatCurrency(order.total_amount || 0)}</span>
-                      </td>
-                      <td className="py-4 px-6">
-                        {getStatusBadge(order.status)}
-                      </td>
-                      <td className="py-4 px-6">
-                        <span className="text-sm text-slate-600">{formatDateTime(order.created_at)}</span>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="flex items-center justify-between px-6 py-4 border-t border-slate-200">
-            <p className="text-sm text-slate-500">
-              Menampilkan {((currentPage - 1) * perPage) + 1} - {Math.min(currentPage * perPage, totalOrders)} dari {totalOrders} pesanan
-            </p>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1}>
-                <ChevronLeft className="h-4 w-4" />
-              </Button>
-              <span className="flex items-center px-3 text-sm text-slate-600">
-                {currentPage} / {totalPages || 1}
-              </span>
-              <Button variant="outline" size="sm" onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>
-                <ChevronRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
+              ))}
+            </tbody>
+          </table>
         </CardContent>
       </Card>
     </div>
